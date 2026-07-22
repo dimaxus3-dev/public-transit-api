@@ -1,0 +1,7 @@
+# The whole backend runs on just these two — ingestion, routing and the
+# GTFS-Realtime protobuf reader are all stdlib-only (no protobuf dependency).
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
+# Optional, only to scale the flat-file store to a spatial DB:
+# psycopg[binary]  +  PostGIS   # swap app/store.py for a PostGIS-backed store
