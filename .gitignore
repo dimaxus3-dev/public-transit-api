@@ -1,0 +1,14 @@
+# ── Generated GTFS artifacts (regenerate with `python -m app.ingest <city>`) ──
+data/
+
+# ── Environments & caches ─────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/

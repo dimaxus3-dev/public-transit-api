@@ -1,0 +1,368 @@
+{
+  "feeds": [
+    {
+      "id": "szczecin-zditm",
+      "country": "PL",
+      "city_region": "Szczecin",
+      "agency_provider": "ZDiTM Szczecin",
+      "official_or_community": "official",
+      "gtfs_static_url": "https://www.zditm.szczecin.pl/storage/gtfs/gtfs.zip",
+      "gtfs_rt_vehicles_url": "https://www.zditm.szczecin.pl/storage/gtfs/gtfs-rt-vehicles.pb",
+      "gtfs_rt_trips_url": "https://www.zditm.szczecin.pl/storage/gtfs/gtfs-rt-trips.pb",
+      "gtfs_rt_alerts_url": "https://www.zditm.szczecin.pl/storage/gtfs/gtfs-rt-alerts.pb",
+      "documentation_url": "https://www.zditm.szczecin.pl/pl/zditm/dla-programistow/gtfs",
+      "has_shapes": true,
+      "has_route_colors": "mode-level",
+      "modes": [
+        "tram",
+        "bus",
+        "ferry"
+      ],
+      "mvp_priority": "Critical",
+      "integration_phase": "Phase 1",
+      "production_suitability": "High",
+      "attribution_required": true,
+      "notes": "VERIFIED 2026-07-13: static + all 3 GTFS-RT feeds live. 97 routes, 525 shapes, 1633 stops. route_color present but shared per mode (all trams #005E85) — use mode fallback palette to distinguish lines. Many variant shapes per route -> dedupe to canonical (longest per route+direction).",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "warszawa-ztm",
+      "country": "PL",
+      "city_region": "Warszawa",
+      "agency_provider": "ZTM Warszawa / WTP (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/warsaw.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": true,
+      "has_route_colors": true,
+      "modes": [
+        "metro",
+        "tram",
+        "bus"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "VERIFIED 2026-07-13: 316 routes, 7107 stops, shapes+route_color. 99MB. Community mirror (mkuran) — for prod confirm ZTM's own open-data feed + license/uptime.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "gzm-katowice",
+      "country": "PL",
+      "city_region": "GZM / Katowice / Silesia",
+      "agency_provider": "ZTM GZM (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/gzm.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": true,
+      "has_route_colors": true,
+      "modes": [
+        "tram",
+        "bus",
+        "trolleybus"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "VERIFIED 2026-07-13: 475 routes, 7185 stops, shapes+route_color. 50MB. Community mirror.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "bay-area-511",
+      "country": "US",
+      "city_region": "San Francisco Bay Area",
+      "agency_provider": "511.org (aggregates BART/SFMTA/Caltrain)",
+      "official_or_community": "official",
+      "gtfs_static_url": "unverified (511 API key required)",
+      "documentation_url": "https://511.org/open-data/transit",
+      "has_shapes": "unverified",
+      "api_key_required": true,
+      "modes": [
+        "metro",
+        "tram",
+        "bus",
+        "rail",
+        "ferry"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "High",
+      "notes": "App already has BartService + Bay511Service as REST adapters. Key required; verify GTFS bulk URL.",
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "nyc-subway",
+      "country": "US",
+      "city_region": "New York City Subway",
+      "agency_provider": "MTA New York",
+      "official_or_community": "official",
+      "gtfs_static_url": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip",
+      "documentation_url": "https://www.mta.info/developers",
+      "has_shapes": "verify",
+      "modes": [
+        "metro",
+        "bus",
+        "rail"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "High",
+      "notes": "VERIFIED 2026-07-13: official MTA S3 subway feed (5MB). Buses/LIRR separate feeds.",
+      "timezone": "America/New_York"
+    },
+    {
+      "id": "berlin-vbb",
+      "country": "DE",
+      "city_region": "Berlin / Brandenburg",
+      "agency_provider": "VBB",
+      "official_or_community": "official",
+      "gtfs_static_url": "https://www.vbb.de/fileadmin/user_upload/VBB/Dokumente/API-Datensaetze/gtfs-mastscharf/GTFS.zip",
+      "documentation_url": "https://www.vbb.de/vbb-services/api-open-data/",
+      "has_shapes": "verify",
+      "modes": [
+        "metro",
+        "tram",
+        "bus",
+        "rail",
+        "ferry"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "High",
+      "notes": "VERIFIED 2026-07-13: current mastscharf GTFS.zip (74MB) + GTFS-RT endpoint (github.com/OpenDataVBB/gtfs-rt-feed). Official open data.",
+      "gtfs_rt_url": "https://production.gtfsrt.vbb.de",
+      "timezone": "Europe/Berlin"
+    },
+    {
+      "id": "bydgoszcz",
+      "country": "PL",
+      "city_region": "Bydgoszcz",
+      "agency_provider": "Bydgoszcz (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/bydgoszcz.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": "verify",
+      "modes": [
+        "tram",
+        "bus"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "community mirror (mkuran); verify shapes/colors after ingest.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "torun",
+      "country": "PL",
+      "city_region": "Toruń",
+      "agency_provider": "Toruń (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/torun.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": "verify",
+      "modes": [
+        "tram",
+        "bus"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "community mirror (mkuran); verify shapes/colors after ingest.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "rzeszow",
+      "country": "PL",
+      "city_region": "Rzeszów",
+      "agency_provider": "Rzeszów (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/rzeszow.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": "verify",
+      "modes": [
+        "tram",
+        "bus"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "community mirror (mkuran); verify shapes/colors after ingest.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "lublin",
+      "country": "PL",
+      "city_region": "Lublin",
+      "agency_provider": "Lublin (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/lublin.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": "verify",
+      "modes": [
+        "tram",
+        "bus"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "community mirror (mkuran); verify shapes/colors after ingest.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "radom",
+      "country": "PL",
+      "city_region": "Radom",
+      "agency_provider": "Radom (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/radom.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": "verify",
+      "modes": [
+        "tram",
+        "bus"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "community mirror (mkuran); verify shapes/colors after ingest.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "kielce",
+      "country": "PL",
+      "city_region": "Kielce",
+      "agency_provider": "Kielce (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/kielce.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": "verify",
+      "modes": [
+        "tram",
+        "bus"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "community mirror (mkuran); verify shapes/colors after ingest.",
+      "timezone": "Europe/Warsaw"
+    },
+    {
+      "id": "germany-fern",
+      "country": "DE",
+      "city_region": "Germany (long-distance rail)",
+      "agency_provider": "gtfs.de / DELFI (free tier)",
+      "official_or_community": "community-aggregate",
+      "gtfs_static_url": "https://download.gtfs.de/germany/fv_free/latest.zip",
+      "documentation_url": "https://gtfs.de/de/feeds/",
+      "has_shapes": "verify",
+      "modes": [
+        "rail"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "attribution_required": true,
+      "notes": "VERIFIED 2026-07-13: all-Germany ICE/IC/EC (0.4MB). CC BY 4.0 — attribution required.",
+      "timezone": "Europe/Berlin"
+    },
+    {
+      "id": "germany-regional",
+      "country": "DE",
+      "city_region": "Germany (regional rail)",
+      "agency_provider": "gtfs.de / DELFI (free tier)",
+      "official_or_community": "community-aggregate",
+      "gtfs_static_url": "https://download.gtfs.de/germany/rv_free/latest.zip",
+      "documentation_url": "https://gtfs.de/de/feeds/",
+      "has_shapes": "verify",
+      "modes": [
+        "rail"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "attribution_required": true,
+      "notes": "VERIFIED 2026-07-13: all-Germany regional trains (10MB). CC BY 4.0.",
+      "timezone": "Europe/Berlin"
+    },
+    {
+      "id": "mbta-boston",
+      "country": "US",
+      "city_region": "Boston",
+      "agency_provider": "MBTA",
+      "official_or_community": "official",
+      "gtfs_static_url": "https://cdn.mbta.com/MBTA_GTFS.zip",
+      "documentation_url": "https://www.mbta.com/developers/gtfs",
+      "has_shapes": "verify",
+      "modes": [
+        "metro",
+        "bus",
+        "rail",
+        "ferry"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "High",
+      "notes": "VERIFIED 2026-07-13: official CDN, keyless (20MB). Exemplary GTFS+RT.",
+      "timezone": "America/New_York"
+    },
+    {
+      "id": "trimet-portland",
+      "country": "US",
+      "city_region": "Portland, OR",
+      "agency_provider": "TriMet",
+      "official_or_community": "official",
+      "gtfs_static_url": "https://developer.trimet.org/schedule/gtfs.zip",
+      "documentation_url": "https://developer.trimet.org/",
+      "has_shapes": "verify",
+      "modes": [
+        "tram",
+        "bus",
+        "rail"
+      ],
+      "mvp_priority": "Medium",
+      "integration_phase": "Phase 1",
+      "production_suitability": "High",
+      "notes": "VERIFIED 2026-07-13: official, keyless (37MB).",
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "cta-chicago",
+      "country": "US",
+      "city_region": "Chicago",
+      "agency_provider": "CTA",
+      "official_or_community": "official",
+      "gtfs_static_url": "https://www.transitchicago.com/downloads/sch_data/google_transit.zip",
+      "documentation_url": "https://www.transitchicago.com/developers/gtfs/",
+      "has_shapes": "verify",
+      "modes": [
+        "metro",
+        "bus"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "High",
+      "notes": "VERIFIED 2026-07-13: official, keyless (65MB).",
+      "timezone": "America/Chicago"
+    },
+    {
+      "id": "pkp-trains",
+      "country": "PL",
+      "city_region": "Poland (national rail / PKP)",
+      "agency_provider": "PKP Intercity + regional operators (mkuran mirror)",
+      "official_or_community": "community-mirror",
+      "gtfs_static_url": "https://mkuran.pl/gtfs/polish_trains.zip",
+      "documentation_url": "https://mkuran.pl/gtfs/",
+      "has_shapes": true,
+      "has_route_colors": true,
+      "modes": [
+        "rail"
+      ],
+      "mvp_priority": "High",
+      "integration_phase": "Phase 1",
+      "production_suitability": "Medium",
+      "notes": "VERIFIED 2026-07-13: 181 routes (EIP/EIC/EC/EN/IC + AR regional), shapes.txt + per-category route_color, 28MB. Whole-Poland rail network.",
+      "timezone": "Europe/Warsaw"
+    }
+  ]
+}
