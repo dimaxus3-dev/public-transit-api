@@ -18,6 +18,23 @@ GTFS-Realtime. No API keys. No database. Artifacts are flat files.
 > Verified live **2026-07-22**. Re-check any time:
 > `python3 scripts/feeds_status.py`.
 
+<p align="center">
+  <img src="docs/maps/nyc-subway.svg" width="100%" alt="New York City Subway — every line rendered from the ingested GTFS in its official MTA color">
+</p>
+<p align="center"><sub>
+  The NYC Subway, drawn by this repo from its own ingested data — every line in
+  its official MTA color. Generated with <code>scripts/render_map.py</code>,
+  no map tiles, no external services.
+</sub></p>
+
+| ![Szczecin tram & bus network](docs/maps/szczecin-zditm.svg) | ![Kielce bus network](docs/maps/kielce.svg) |
+|:---:|:---:|
+| **Szczecin** — trams (blue) over the bus grid, live GTFS-RT | **Kielce** — 56 bus routes, per-route feed colors |
+
+```bash
+python3 scripts/render_map.py nyc-subway     # re-draw any ingested city
+```
+
 ---
 
 ## 🚦 Feed status — what works & what doesn't
@@ -90,16 +107,89 @@ Interactive docs at `/docs` once the server is up.
 
 ---
 
+## 🧪 See it in action
+
+Real responses from a running instance (Szczecin, live GTFS-RT attached).
+
+**Plan a door-to-door journey** — walk → tram → walk, with the tram's *live*
+delay already applied:
+
+```bash
+curl "localhost:8000/journey?city=szczecin-zditm&from_lat=53.428&from_lon=14.552&to_lat=53.44&to_lon=14.49"
+```
+
+```jsonc
+{
+  "itineraries": [{
+    "depart": "2026-07-23T20:40", "arrive": "2026-07-23T21:11",
+    "duration_min": 31, "transfers": 1, "walk_min": 8,
+    "live": true,                       // ← realtime delays applied
+    "legs": [
+      { "type": "walk", "to": "Plac Rodła", "seconds": 364 },
+      { "type": "ride", "mode": "tram", "route": "5", "color": "#005E85",
+        "headsign": "Osiedle Zawadzkiego",
+        "board": "Plac Rodła", "alight": "Krzekowo",
+        "delay_sec": -2, "live": true, "num_stops": 12,
+        "stops": [ { "name": "Plac Rodła", "lat": 53.4316, "lon": 14.5556 }, "…" ] },
+      { "type": "walk", "to": "Destination", "seconds": 297 }
+    ]
+  }]
+}
+```
+
+**"My Stop" departure board** — next departures with per-vehicle delays:
+
+```bash
+curl "localhost:8000/stops/szczecin-zditm/11511/departures?limit=3"
+```
+
+```jsonc
+{
+  "stop_name": "Plac Rodła",
+  "departures": [
+    { "route": "101", "mode": "bus",  "time": "20:41", "in_minutes": 0, "live": true,  "delay_sec": 25  },
+    { "route": "12",  "mode": "tram", "time": "20:48", "in_minutes": 7, "live": true,  "delay_sec": 131 },
+    { "route": "59",  "mode": "bus",  "time": "20:47", "in_minutes": 6, "live": false, "delay_sec": 0   }
+  ]
+}
+```
+
+**Live vehicle positions** — 166 vehicles on the map at query time:
+
+```bash
+curl "localhost:8000/vehicles/live?city=szczecin-zditm"
+```
+
+```jsonc
+[
+  { "route": "60", "mode": "bus", "lat": 53.44495, "lon": 14.53979,
+    "bearing": 90.0, "headsign": "Stocznia Szczecińska", "label": "1053" },
+  "… 165 more"
+]
+```
+
+---
+
 ## 🧭 How it works
 
-```
-GTFS zip ──▶ app/ingest.py ──▶ data/<city>/  { lines.geojson · stops.json · gtfs.sqlite }
-                                     │
-                                     ▼
-   app/store.py     geometry, stops, nearby        ◀── FastAPI (app/main.py)
-   app/schedule.py  service calendar, departures
-   app/routing.py   Connection Scan A→B journeys
-   app/realtime.py  GTFS-RT vehicles + delays (stdlib protobuf reader)
+```mermaid
+flowchart LR
+    subgraph ingest ["one-time ingest (stdlib only)"]
+        Z[GTFS zip] --> I[app/ingest.py]
+        I --> G["lines.geojson<br/>(map layer)"]
+        I --> S["stops.json"]
+        I --> Q["gtfs.sqlite<br/>(trips & times)"]
+    end
+    subgraph serve ["FastAPI (app/main.py)"]
+        G --> ST[app/store.py<br/>geometry · nearby]
+        S --> ST
+        Q --> SC[app/schedule.py<br/>calendar · departures]
+        Q --> R["app/routing.py<br/>Connection Scan A→B"]
+    end
+    RT["GTFS-Realtime<br/>protobuf feeds"] --> RE[app/realtime.py<br/>stdlib wire reader]
+    RE -->|delays| SC
+    RE -->|delays| R
+    RE -->|positions| V["/vehicles/live"]
 ```
 
 - **Routing** is a **Connection Scan Algorithm** over the day's GTFS
