@@ -19,7 +19,7 @@ GTFS-Realtime. No API keys. No external database server required — artifacts a
 </p>
 
 > **Public transport only** — city trams, buses, metro, urban & national rail.
-> **📊 [Live status of every city →](docs/STATUS.md)** — all 1501 feeds
+> **📊 [Live status of every city →](docs/STATUS.md)** · **🚏 [Network stats & all stops →](docs/STATS.md)** — all 1501 feeds
 > measured (HTTP · latency · size), refreshed weekly by CI.
 > Last full check **2026-07-24**: **1436/1501 alive (95 %), median 263 ms**.
 
@@ -218,6 +218,7 @@ response 263 ms. Catalog feeds that need a provider API key (e.g. Bay Area
 | `GET /health` | Liveness + which feeds are ingested |
 | `GET /feeds` | **Browse all 1500+ registered feeds** — filter `?country=IT`, search `?q=venice` |
 | `GET /countries` | Feed count per country across the whole registry |
+| `GET /stats` | Network statistics: routes/stops/trips per city + totals |
 | `POST /feeds/{id}/ingest` | Activate any city over HTTP — **admin-only** (`ADMIN_KEY` + `X-API-Key`), atomic, max 2 concurrent |
 | `GET /cities` | Ingested cities + center coords (map picker) |
 | `GET /routes?city=` | Routes in a city (filter by `mode`) |

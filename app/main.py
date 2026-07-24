@@ -284,6 +284,42 @@ def feeds(
     return {"total": len(out), "feeds": out[offset : offset + limit]}
 
 
+@app.get("/stats")
+def stats():
+    """Network statistics: per ingested city (routes, stops, trips, shapes,
+    timezone) plus totals, and the size of the whole registry."""
+    cities_out = []
+    totals = {"routes": 0, "stops": 0, "trips": 0, "shapes": 0}
+    for fid in store.available_feeds():
+        try:
+            with open(os.path.join(paths.DATA_DIR, fid, "summary.json"), encoding="utf-8") as fh:
+                s = json.load(fh)
+        except Exception:  # noqa: BLE001, S112 — a broken summary just drops out
+            continue
+        f = _FEEDS.get(fid, {})
+        cities_out.append(
+            {
+                "feed": fid,
+                "city": f.get("city_region", fid),
+                "country": f.get("country"),
+                "routes": s.get("routes", 0),
+                "stops": s.get("stops", 0),
+                "trips": s.get("trips", 0),
+                "shapes": s.get("shapes", 0),
+                "timezone": s.get("timezone") or f.get("timezone"),
+            }
+        )
+        for k in totals:
+            totals[k] += s.get(k, 0)
+    cities_out.sort(key=lambda c: -c["stops"])
+    reg_countries = {(f.get("country") or "").strip().upper() for f in _FEEDS.values()}
+    return {
+        "registry": {"feeds": len(_FEEDS), "countries": len(reg_countries - {""})},
+        "ingested": {"cities": len(cities_out), **totals},
+        "cities": cities_out,
+    }
+
+
 @app.get("/countries")
 def countries():
     """Country → feed count across the whole registry."""
