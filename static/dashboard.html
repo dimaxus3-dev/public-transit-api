@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transit Intelligence</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --panel2:#fbfcfd; --line:#e6e8ec;
+    --text:#0c0e12; --muted:#697386; --soft:#9aa3b2;
+    --accent:#5b6cff; --accent2:#8b5bff;
+    --green:#18b26b; --yellow:#e7a412; --blue:#2f7ff0; --purple:#8b5bff;
+    --red:#e5484d; --grey:#c6ccd6;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px -12px rgba(16,24,40,.12);
+    --glass:rgba(255,255,255,.72);
+    --r:16px; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  [data-theme="dark"]{
+    --bg:#0b0d11; --panel:#12151b; --panel2:#161a21; --line:#232833;
+    --text:#e8eaef; --muted:#8b93a5; --soft:#5d6575;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -16px rgba(0,0,0,.6);
+    --glass:rgba(18,21,27,.72);
+    --grey:#2c323d;
+  }
+  *{box-sizing:border-box;margin:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--text);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; transition:background .3s,color .3s;
+  }
+  a{color:inherit}
+  ::selection{background:rgba(91,108,255,.25)}
+
+  /* ── top bar ─────────────────────────────────────────────────────────── */
+  .top{
+    position:sticky; top:0; z-index:50; backdrop-filter:blur(14px) saturate(1.4);
+    background:var(--glass); border-bottom:1px solid var(--line);
+  }
+  .top-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:12px 20px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.02em;white-space:nowrap}
+  .logo .dot{width:26px;height:26px;border-radius:8px;flex:none;
+    background:conic-gradient(from 210deg,var(--accent),var(--accent2),var(--green),var(--accent));
+    box-shadow:0 2px 10px -2px rgba(91,108,255,.6)}
+  .search{flex:1;max-width:520px;position:relative}
+  .search input{
+    width:100%; padding:8px 34px 8px 34px; border-radius:10px; border:1px solid var(--line);
+    background:var(--panel); color:var(--text); font:inherit; outline:none;
+    transition:border .15s, box-shadow .15s;
+  }
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,108,255,.18)}
+  .search .icon{position:absolute;left:11px;top:8px;color:var(--soft)}
+  .search .kbd{position:absolute;right:9px;top:7px;font:11px/1 var(--mono);color:var(--soft);
+    border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:var(--panel2)}
+  .results{
+    position:absolute;top:42px;left:0;right:0;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow);overflow:hidden;display:none;max-height:340px;overflow-y:auto
+  }
+  .results.open{display:block;animation:pop .14s ease}
+  .results .row{display:flex;gap:10px;align-items:center;padding:9px 12px;cursor:pointer}
+  .results .row:hover{background:var(--panel2)}
+  .results .tag{font:10px/1 var(--mono);padding:3px 6px;border-radius:6px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--muted);flex:none;text-transform:uppercase}
+  .btn{
+    border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;
+    padding:8px 12px;font:inherit;cursor:pointer;transition:transform .12s,border .15s;white-space:nowrap
+  }
+  .btn:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .btn:active{transform:translateY(0) scale(.98)}
+
+  /* ── layout ──────────────────────────────────────────────────────────── */
+  .wrap{max-width:1240px;margin:0 auto;padding:26px 20px 80px}
+  h1{font-size:22px;letter-spacing:-.03em;font-weight:700}
+  .sub{color:var(--muted);margin-top:4px}
+  .section{margin-top:34px}
+  .section h2{font-size:15px;font-weight:650;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+  .section h2 .hint{font-weight:450;color:var(--soft);font-size:12px}
+
+  /* ── KPI cards ───────────────────────────────────────────────────────── */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:12px;margin-top:14px}
+  .kpi{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+    animation:rise .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .kpi .lbl{font-size:12px;color:var(--muted)}
+  .kpi .val{font-size:24px;font-weight:700;letter-spacing:-.03em;margin-top:2px;font-variant-numeric:tabular-nums}
+  .kpi .sub2{font-size:11px;color:var(--soft);margin-top:2px}
+  .kpi .spark{position:absolute;right:10px;top:12px;opacity:.9}
+  .ring{position:relative;width:46px;height:46px;flex:none}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+
+  /* ── map ─────────────────────────────────────────────────────────────── */
+  .map-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);padding:18px;margin-top:14px;overflow:hidden
+  }
+  #map{width:100%;display:block}
+  .tile{cursor:pointer;transition:transform .18s cubic-bezier(.2,.7,.2,1),filter .18s;transform-box:fill-box;transform-origin:center}
+  .tile:hover{transform:scale(1.22);filter:brightness(1.12)}
+  .tile.dim{opacity:.25}
+  .tile-label{font:600 5.2px var(--mono);fill:#fff;pointer-events:none;opacity:.92}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;color:var(--muted);font-size:12px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  #tip{
+    position:fixed;z-index:90;pointer-events:none;display:none;min-width:210px;
+    background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;font-size:12px
+  }
+  #tip .t{font-weight:700;font-size:13px;margin-bottom:6px;display:flex;justify-content:space-between;gap:12px}
+  #tip .g{display:grid;grid-template-columns:auto auto;gap:2px 16px}
+  #tip .g b{font-variant-numeric:tabular-nums;text-align:right}
+  #tip .tier{font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid var(--line)}
+
+  /* ── panels / charts ─────────────────────────────────────────────────── */
+  .grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;margin-top:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px}
+  @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px 18px;box-shadow:var(--shadow);animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+  .panel h3{font-size:13px;font-weight:650;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between}
+  .bar-row{display:grid;grid-template-columns:44px 1fr 74px;align-items:center;gap:10px;margin:7px 0;font-size:12px}
+  .bar-row .cc{font:600 12px var(--mono)}
+  .bar-row .track{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+  .bar-row .fill{height:100%;border-radius:99px;width:0;transition:width .9s cubic-bezier(.2,.7,.2,1)}
+  .bar-row .end{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft);
+    text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap}
+  th.sorted{color:var(--accent)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+  tbody tr{transition:background .12s;cursor:pointer}
+  tbody tr:hover{background:var(--panel2)}
+  .pill{font-size:11px;padding:2px 9px;border-radius:99px;font-weight:600}
+  .score-cell{display:flex;align-items:center;gap:8px}
+  .mini-track{width:64px;height:6px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+  .mini-fill{height:100%;border-radius:99px}
+
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 13px;
+    font-size:12px;cursor:pointer;color:var(--muted);transition:all .15s}
+  .chip:hover{border-color:var(--accent);color:var(--text)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* drilldown drawer */
+  #drawer{
+    position:fixed;top:0;right:0;bottom:0;width:min(440px,94vw);z-index:80;
+    background:var(--glass);backdrop-filter:blur(20px) saturate(1.3);
+    border-left:1px solid var(--line);box-shadow:-24px 0 48px -24px rgba(0,0,0,.35);
+    transform:translateX(105%);transition:transform .32s cubic-bezier(.2,.8,.2,1);
+    padding:22px;overflow-y:auto
+  }
+  #drawer.open{transform:none}
+  #drawer .close{position:absolute;top:14px;right:14px}
+  #drawer h2{font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+  .dstat{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .dstat .s{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .dstat .s .l{font-size:11px;color:var(--muted)}
+  .dstat .s .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .funnel{margin-top:16px}
+  .funnel .f{margin:8px 0}
+  .funnel .f .l{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .funnel .track{height:10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+  .funnel .fill{height:100%;border-radius:99px;width:0;transition:width .8s cubic-bezier(.2,.7,.2,1)}
+
+  .skel{position:relative;overflow:hidden;background:var(--panel2);border-radius:8px;min-height:14px}
+  .skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,rgba(150,160,180,.14),transparent);
+    animation:shimmer 1.2s infinite}
+  @keyframes shimmer{100%{transform:translateX(100%)}}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes pop{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+  .footer{margin-top:44px;color:var(--soft);font-size:12px;display:flex;gap:16px;flex-wrap:wrap}
+  @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}.top-in{padding:10px 12px}.wrap{padding:18px 12px 60px}}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="top-in">
+  <div class="logo"><div class="dot"></div>Transit&nbsp;Intelligence</div>
+  <div class="search">
+    <span class="icon">⌕</span>
+    <input id="q" placeholder="Search countries, cities, feeds…" autocomplete="off">
+    <span class="kbd">/</span>
+    <div class="results" id="results"></div>
+  </div>
+  <button class="btn" id="exportBtn" title="Export country table">Export ▾</button>
+  <button class="btn" id="themeBtn" title="Toggle theme (T)">◐</button>
+</div></div>
+
+<div class="wrap">
+  <h1>Global network overview</h1>
+  <div class="sub" id="subline"><span class="skel" style="display:inline-block;width:340px"></span></div>
+
+  <!-- KPIs -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- MAP -->
+  <div class="section">
+    <h2>Coverage map <span class="hint">— click a country to drill down</span></h2>
+    <div class="map-card">
+      <svg id="map" viewBox="0 0 232 118" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="legend">
+        <span><i style="background:var(--purple)"></i>Premium — transit + realtime + shared mobility</span>
+        <span><i style="background:var(--blue)"></i>Realtime enabled</span>
+        <span><i style="background:var(--green)"></i>Full coverage</span>
+        <span><i style="background:var(--yellow)"></i>Partial</span>
+        <span><i style="background:var(--red)"></i>Degraded</span>
+        <span><i style="background:var(--grey)"></i>No data</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTERS + RANKING -->
+  <div class="section">
+    <h2>Coverage ranking <span class="hint" id="rankCount"></span></h2>
+    <div class="filters" id="filters"></div>
+    <div class="panel" style="margin-top:14px;padding:6px 6px 2px;overflow-x:auto">
+      <table id="rank">
+        <thead><tr>
+          <th data-k="country">Country</th><th data-k="score">Coverage score</th>
+          <th data-k="tier">Tier</th><th data-k="feeds">Feeds</th><th data-k="alive">Alive</th>
+          <th data-k="cities">Cities</th><th data-k="median_ms">Latency</th>
+          <th data-k="gbfs_systems">Shared mobility</th><th data-k="realtime_feeds">Realtime</th>
+        </tr></thead>
+        <tbody id="rankBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- QUALITY + HEALTH + NETWORK -->
+  <div class="grid3 section">
+    <div class="panel">
+      <h3>Data quality <span id="dqBadge"></span></h3>
+      <div id="dqRings" style="display:flex;gap:18px;justify-content:space-around;margin:6px 0 14px"></div>
+      <div id="dqIssues"></div>
+    </div>
+    <div class="panel">
+      <h3>Pipeline funnel <span class="hint">every registered feed, end-to-end</span></h3>
+      <div class="funnel" id="funnel"></div>
+      <h3 style="margin-top:18px">Feed response time</h3>
+      <svg id="lat" width="100%" height="90" viewBox="0 0 300 90" preserveAspectRatio="none"></svg>
+      <div style="display:flex;justify-content:space-between;color:var(--soft);font-size:11px"><span>0 ms</span><span>500 ms</span><span>≥1 s</span></div>
+    </div>
+    <div class="panel">
+      <h3>Ingested networks <span class="hint">live on this instance</span></h3>
+      <div id="cityBars"></div>
+      <h3 style="margin-top:18px">Top countries by feeds</h3>
+      <div id="countryBars"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span id="genat"></span>
+    <span>Coverage Score = 35% availability · 25% ingestability · 15% routability · 10% latency · 10% shared mobility · 5% realtime</span>
+    <a href="/docs">API docs</a><a href="/dashboard/data">Raw payload</a>
+  </div>
+</div>
+
+<div id="tip"></div>
+<div id="drawer"><button class="btn close" onclick="closeDrawer()">✕</button><div id="drawerBody"></div></div>
+
+<script>
+"use strict";
+/* ── theme ──────────────────────────────────────────────────────────────── */
+const root=document.documentElement;
+const saved=localStorage.getItem("ti-theme");
+root.dataset.theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+document.getElementById("themeBtn").onclick=()=>{ root.dataset.theme=root.dataset.theme==="dark"?"light":"dark";
+  localStorage.setItem("ti-theme",root.dataset.theme); };
+
+/* ── tile-grid world map (self-contained cartogram) ─────────────────────── */
+const GRID={IS:[7,0],NO:[10,0],SE:[11,0],FI:[12,0],EE:[12,1],CA:[3,1],GB:[8,2],DK:[10,2],LV:[12,2],
+IE:[7,3],NL:[9,3],DE:[10,3],PL:[11,3],LT:[12,3],BY:[13,3],RU:[15,1],US:[3,3],BE:[9,4],LU:[9,5],
+CZ:[10,4],SK:[11,4],UA:[13,4],FR:[8,5],CH:[9,6],AT:[10,5],HU:[11,5],RO:[12,5],MD:[13,5],KZ:[16,3],
+PT:[7,7],ES:[8,7],IT:[10,7],SI:[10,6],HR:[11,6],RS:[12,6],BG:[13,6],GE:[15,5],MX:[3,6],
+GR:[12,7],TR:[14,6],CY:[14,7],IL:[14,8],MA:[8,9],DZ:[9,9],EG:[13,9],SA:[15,8],AE:[16,8],IN:[18,7],
+CN:[19,5],JP:[22,5],KR:[21,5],TW:[20,7],HK:[20,6],TH:[19,8],MY:[19,9],SG:[19,10],ID:[20,10],PH:[21,8],
+VN:[20,8],AU:[21,12],NZ:[23,13],BR:[6,10],AR:[5,12],CL:[4,12],CO:[4,9],PE:[4,10],EC:[3,9],UY:[6,12],
+CR:[3,8],PA:[4,8],GT:[2,7],DO:[5,7],JM:[4,7],ZA:[12,13],KE:[13,11],NG:[9,10],GH:[8,10],CI:[7,10],
+SN:[6,9],TZ:[13,12],ET:[14,10],UG:[13,10],ZM:[12,12],ZW:[12,12],BF:[8,9],SM:[10,8],MT:[11,8],AD:[8,6],
+AL:[12,8],MK:[12,7],BA:[11,7],ME:[11,8],XK:[12,8],AM:[15,6],AZ:[16,6],TN:[10,9],LK:[18,9],NP:[18,6],
+BD:[19,7],PK:[17,6],MN:[19,4],QA:[15,9],KW:[15,7],OM:[16,9],JO:[14,8],LB:[14,7],KG:[17,4],UZ:[16,4]};
+const COV_COLOR={premium:"var(--purple)",realtime:"var(--blue)",full:"var(--green)",
+partial:"var(--yellow)",down:"var(--red)",none:"var(--grey)"};
+const TIER_COLOR={Excellent:"var(--green)",Good:"var(--blue)",Average:"var(--yellow)",Poor:"var(--red)",Critical:"var(--red)"};
+const FLAG=cc=>cc.replace(/./g,ch=>String.fromCodePoint(0x1F1E6+ch.charCodeAt(0)-65));
+
+let DATA=null, byCC={}, activeFilter="all", sortK="score", sortDir=-1;
+
+const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e4?Math.round(n/1e3)+"k":n>=1000?n.toLocaleString("en"):String(n);
+
+/* animated counters */
+function count(el,to,suffix=""){const t0=performance.now(),dur=900,from=0;
+  const step=t=>{const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);
+    el.textContent=fmt(Math.round(from+(to-from)*e))+suffix; if(p<1)requestAnimationFrame(step);};
+  requestAnimationFrame(step);}
+
+function ringSVG(pct,color,size=46,w=5){
+  const r=(size-w)/2,c=2*Math.PI*r;
+  return `<div class="ring" style="width:${size}px;height:${size}px">
+    <svg width="${size}" height="${size}">
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="${w}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${w}"
+        stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c}" style="transition:stroke-dashoffset 1s cubic-bezier(.2,.7,.2,1)"
+        data-target="${c*(1-pct/100)}"/>
+    </svg><div class="num">${Math.round(pct)}</div></div>`;}
+function armRings(scope){requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  scope.querySelectorAll("circle[data-target]").forEach(c=>c.style.strokeDashoffset=c.dataset.target);}));}
+
+/* ── boot ───────────────────────────────────────────────────────────────── */
+async function boot(){
+  const r=await fetch("/dashboard/data");
+  DATA=await r.json();
+  DATA.countries.forEach(c=>byCC[c.country]=c);
+  renderKPIs(); renderMap(); renderFilters(); renderRank(); renderQuality();
+  renderFunnel(); renderLatency(); renderSideBars();
+  document.getElementById("subline").textContent=
+    `${DATA.kpi.feeds.toLocaleString()} transit feeds · ${DATA.kpi.countries} countries · `+
+    `${DATA.kpi.gbfs_systems.toLocaleString()} shared-mobility systems · last full check ${DATA.checked_at||"—"}`;
+  document.getElementById("genat").textContent=`Generated ${DATA.generated_at}`;
+}
+boot();
+
+/* ── KPIs ───────────────────────────────────────────────────────────────── */
+function renderKPIs(){
+  const k=DATA.kpi;
+  const items=[
+    ["Countries",k.countries,"transit registry"],
+    ["GTFS feeds",k.feeds,`${k.alive.toLocaleString()} alive`],
+    ["Availability",Math.round(100*k.alive/Math.max(1,k.feeds)),"%, registry-wide",true],
+    ["Coverage score",k.coverage_score,"proprietary 0–100",true],
+    ["Data quality",k.quality,"fresh · complete · intact",true],
+    ["Median response",k.median_ms," ms, all feeds"],
+    ["Cities live",k.cities_ingested,"on this instance"],
+    ["Routes",k.routes,"ingested networks"],
+    ["Stops",k.stops,"ingested networks"],
+    ["Scheduled trips",k.trips,"per service day"],
+    ["Realtime feeds",k.realtime_feeds,"GTFS-RT, curated"],
+    ["Shared mobility",k.gbfs_systems,`GBFS · ${k.gbfs_countries} countries`],
+  ];
+  const el=document.getElementById("kpis");
+  el.innerHTML=items.map(([l,v,s,ring],i)=>`
+    <div class="kpi" style="animation-delay:${i*40}ms">
+      ${ring?`<div class="spark">${ringSVG(v, v>=80?"var(--green)":v>=60?"var(--blue)":v>=40?"var(--yellow)":"var(--red)",40,4)}</div>`:""}
+      <div class="lbl">${l}</div><div class="val" data-v="${v}">0</div><div class="sub2">${s}</div>
+    </div>`).join("");
+  el.querySelectorAll(".val").forEach(v=>count(v,+v.dataset.v));
+  armRings(el);
+}
+
+/* ── map ────────────────────────────────────────────────────────────────── */
+function renderMap(){
+  const svg=document.getElementById("map"); const S=8.4,G=1.1,R=1.8;
+  let shelfX=1, shelfY=15.6; // row for countries without a grid slot
+  const tiles=[];
+  const placed=new Set();
+  for(const c of DATA.countries){
+    let pos=GRID[c.country];
+    if(!pos){pos=[shelfX++,shelfY]; if(shelfX>25){shelfX=1;shelfY+=1.1;}}
+    placed.add(c.country);
+    tiles.push({cc:c.country,x:pos[0],y:pos[1],c});
+  }
+  // faint background tiles for known-but-uncovered countries
+  const bg=Object.keys(GRID).filter(cc=>!placed.has(cc))
+    .map(cc=>{const[x,y]=GRID[cc];return `<rect x="${x*(S+G)}" y="${y*(S+G)}" width="${S}" height="${S}" rx="${R}" fill="var(--grey)" opacity=".35"/>`}).join("");
+  svg.innerHTML=bg+tiles.map(t=>`
+    <g class="tile" data-cc="${t.cc}">
+      <rect x="${t.x*(S+G)}" y="${t.y*(S+G)}" width="${S}" height="${S}" rx="${R}"
+        fill="${COV_COLOR[t.c.coverage]||"var(--grey)"}"></rect>
+      <text class="tile-label" x="${t.x*(S+G)+S/2}" y="${t.y*(S+G)+S/2+1.9}" text-anchor="middle">${t.cc}</text>
+    </g>`).join("");
+  const tip=document.getElementById("tip");
+  svg.querySelectorAll(".tile").forEach(g=>{
+    const c=byCC[g.dataset.cc];
+    g.addEventListener("mousemove",e=>{
+      tip.style.display="block";
+      tip.style.left=Math.min(innerWidth-240,e.clientX+14)+"px";
+      tip.style.top=Math.min(innerHeight-190,e.clientY+14)+"px";
+      tip.innerHTML=`<div class="t"><span>${FLAG(c.country)} ${c.country}</span>
+        <span class="tier" style="color:${TIER_COLOR[c.tier]}">${c.tier} · ${c.score}</span></div>
+        <div class="g">
+          <span>Feeds</span><b>${c.feeds}</b>
+          <span>Alive</span><b>${c.alive} (${Math.round(100*c.alive/Math.max(1,c.feeds))}%)</b>
+          <span>Cities</span><b>${c.cities}</b>
+          <span>Median latency</span><b>${c.median_ms} ms</b>
+          <span>Deep-checked</span><b>${c.deep_checked}</b>
+          <span>Routable today</span><b>${c.routable}</b>
+          <span>Shared mobility</span><b>${c.gbfs_systems} systems</b>
+          <span>Realtime</span><b>${c.realtime_feeds?`📡 ${c.realtime_feeds} feeds`:"—"}</b>
+        </div>`;
+    });
+    g.addEventListener("mouseleave",()=>tip.style.display="none");
+    g.addEventListener("click",()=>openDrawer(c.country));
+  });
+}
+
+/* ── filters + ranking table ────────────────────────────────────────────── */
+const FILTERS=[["all","All"],["premium","Premium"],["realtime","Realtime"],["full","Full"],
+["partial","Partial"],["down","Degraded"],["gbfs","Has shared mobility"],["Excellent","Excellent"],["Good","Good"]];
+function renderFilters(){
+  document.getElementById("filters").innerHTML=FILTERS.map(([k,l])=>
+    `<span class="chip ${k===activeFilter?"on":""}" data-f="${k}">${l}</span>`).join("");
+  document.querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>{activeFilter=ch.dataset.f;renderFilters();renderRank();dimMap();});
+}
+function dimMap(){document.querySelectorAll("#map .tile").forEach(g=>{
+  const c=byCC[g.dataset.cc]; g.classList.toggle("dim",!matches(c));});}
+function matches(c){
+  if(activeFilter==="all")return true;
+  if(activeFilter==="gbfs")return c.gbfs_systems>0;
+  if(["Excellent","Good"].includes(activeFilter))return c.tier===activeFilter;
+  return c.coverage===activeFilter;}
+function renderRank(){
+  const rows=DATA.countries.filter(matches).sort((a,b)=>{
+    const x=a[sortK],y=b[sortK];return (x<y?-1:x>y?1:0)*(-sortDir);});
+  document.getElementById("rankCount").textContent=`— ${rows.length} countries`;
+  document.getElementById("rankBody").innerHTML=rows.map(c=>`
+    <tr data-cc="${c.country}">
+      <td>${FLAG(c.country)} <b>${c.country}</b></td>
+      <td><div class="score-cell"><div class="mini-track"><div class="mini-fill" style="width:${c.score}%;background:${TIER_COLOR[c.tier]}"></div></div><b>${c.score}</b></div></td>
+      <td><span class="pill" style="color:${TIER_COLOR[c.tier]};border:1px solid var(--line)">${c.tier}</span></td>
+      <td>${c.feeds}</td><td>${c.alive}</td><td>${c.cities}</td>
+      <td>${c.median_ms} ms</td>
+      <td>${c.gbfs_systems||"—"}</td>
+      <td>${c.realtime_feeds?"📡 "+c.realtime_feeds:"—"}</td>
+    </tr>`).join("");
+  document.querySelectorAll("#rank th").forEach(th=>{
+    th.classList.toggle("sorted",th.dataset.k===sortK);
+    th.onclick=()=>{if(sortK===th.dataset.k)sortDir*=-1;else{sortK=th.dataset.k;sortDir=-1;}renderRank();};});
+  document.querySelectorAll("#rankBody tr").forEach(tr=>tr.onclick=()=>openDrawer(tr.dataset.cc));
+}
+
+/* ── quality / funnel / latency / bars ──────────────────────────────────── */
+function renderQuality(){
+  const q=DATA.quality;
+  document.getElementById("dqBadge").innerHTML=
+    `<span class="pill" style="color:${q.overall>=80?"var(--green)":q.overall>=60?"var(--yellow)":"var(--red)"}">${q.overall} / 100</span>`;
+  const rings=[["Freshness",q.freshness],["Completeness",q.completeness],["Integrity",q.integrity]];
+  const el=document.getElementById("dqRings");
+  el.innerHTML=rings.map(([l,v])=>`<div style="text-align:center">
+    ${ringSVG(v, v>=80?"var(--green)":v>=60?"var(--yellow)":"var(--red)",64,6)}
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">${l}</div></div>`).join("");
+  armRings(el);
+  const total=q.issues.reduce((s,[,n])=>s+n,0)||1;
+  document.getElementById("dqIssues").innerHTML=
+    `<div style="font-size:11px;color:var(--soft);margin-bottom:6px">Issue taxonomy — ${total} feeds with findings (auto-classified)</div>`+
+    q.issues.slice(0,7).map(([k,n])=>`
+    <div class="bar-row" style="grid-template-columns:1fr 90px 34px">
+      <span style="color:var(--muted)">${k}</span>
+      <div class="track"><div class="fill" data-w="${100*n/q.issues[0][1]}" style="background:var(--yellow)"></div></div>
+      <span class="end">${n}</span></div>`).join("");
+  armBars();
+}
+function renderFunnel(){
+  const d=DATA.kpi.deep, steps=[["Registered",DATA.kpi.feeds,"var(--accent)"],
+    ["Reachable",d.reachable,"var(--blue)"],["Valid GTFS, ingested",d.ingested,"var(--green)"],
+    ["Routable today",d.routable,"var(--purple)"]];
+  const max=DATA.kpi.feeds||1;
+  document.getElementById("funnel").innerHTML=steps.map(([l,v,col])=>`
+    <div class="f"><div class="l"><span>${l}</span><b>${v.toLocaleString()} · ${Math.round(100*v/max)}%</b></div>
+    <div class="track"><div class="fill" data-w="${100*v/max}" style="background:${col}"></div></div></div>`).join("");
+  armBars();
+}
+function renderLatency(){
+  const b=DATA.latency_histogram,max=Math.max(...b,1),W=300,H=86,bw=W/b.length;
+  document.getElementById("lat").innerHTML=b.map((v,i)=>{
+    const h=Math.max(2,(H-8)*v/max);
+    return `<rect x="${i*bw+3}" y="${H-h}" width="${bw-6}" height="0" rx="3"
+      fill="${i<3?"var(--green)":i<6?"var(--yellow)":"var(--red)"}" opacity=".85">
+      <animate attributeName="height" to="${h}" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0.7 0.2 1"/>
+      <animate attributeName="y" to="${H-h}" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0.7 0.2 1"/>
+    </rect><title>${i<9?i*100+"–"+(i*100+99):"≥900"} ms — ${v} feeds</title>`;}).join("");
+}
+function renderSideBars(){
+  const cities=DATA.cities.slice(0,6),cmax=Math.max(...cities.map(c=>c.stops),1);
+  document.getElementById("cityBars").innerHTML=cities.map(c=>`
+    <div class="bar-row"><span class="cc" title="${c.feed}">${(c.city||c.feed).slice(0,6)}</span>
+      <div class="track"><div class="fill" data-w="${100*c.stops/cmax}" style="background:linear-gradient(90deg,var(--accent),var(--accent2))"></div></div>
+      <span class="end">${c.stops.toLocaleString()} stops</span></div>`).join("");
+  const top=DATA.countries.slice().sort((a,b)=>b.feeds-a.feeds).slice(0,6),fmax=top[0]?.feeds||1;
+  document.getElementById("countryBars").innerHTML=top.map(c=>`
+    <div class="bar-row"><span class="cc">${FLAG(c.country)} ${c.country}</span>
+      <div class="track"><div class="fill" data-w="${100*c.feeds/fmax}" style="background:var(--blue)"></div></div>
+      <span class="end">${c.feeds} feeds</span></div>`).join("");
+  armBars();
+}
+function armBars(){requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  document.querySelectorAll(".fill[data-w]").forEach(f=>f.style.width=f.dataset.w+"%");}));}
+
+/* ── drilldown drawer ───────────────────────────────────────────────────── */
+function openDrawer(cc){
+  const c=byCC[cc]; if(!c)return;
+  const cities=DATA.cities.filter(x=>x.country===cc);
+  const body=document.getElementById("drawerBody");
+  body.innerHTML=`
+    <h2>${FLAG(cc)} ${cc} <span class="pill" style="color:${TIER_COLOR[c.tier]};border:1px solid var(--line)">${c.tier}</span></h2>
+    <div style="display:flex;align-items:center;gap:16px;margin-top:14px">
+      ${ringSVG(c.score,TIER_COLOR[c.tier],84,8)}
+      <div><div style="font-size:26px;font-weight:800;letter-spacing:-.03em">${c.score}<span style="font-size:14px;color:var(--soft)"> / 100</span></div>
+      <div style="color:var(--muted);font-size:12px">Coverage Score</div></div>
+    </div>
+    <div class="dstat">
+      <div class="s"><div class="l">GTFS feeds</div><div class="v">${c.feeds}</div></div>
+      <div class="s"><div class="l">Alive</div><div class="v">${c.alive} <span style="font-size:12px;color:var(--soft)">(${Math.round(100*c.alive/Math.max(1,c.feeds))}%)</span></div></div>
+      <div class="s"><div class="l">Cities in registry</div><div class="v">${c.cities}</div></div>
+      <div class="s"><div class="l">Median latency</div><div class="v">${c.median_ms} <span style="font-size:12px;color:var(--soft)">ms</span></div></div>
+      <div class="s"><div class="l">Shared mobility</div><div class="v">${c.gbfs_systems} <span style="font-size:12px;color:var(--soft)">GBFS</span></div></div>
+      <div class="s"><div class="l">Realtime</div><div class="v">${c.realtime_feeds?("📡 "+c.realtime_feeds):"—"}</div></div>
+    </div>
+    <div class="funnel">
+      <div class="f"><div class="l"><span>Deep-checked</span><b>${c.deep_checked}</b></div>
+        <div class="track"><div class="fill" data-w="100" style="background:var(--accent)"></div></div></div>
+      <div class="f"><div class="l"><span>Ingested end-to-end</span><b>${c.ingested}</b></div>
+        <div class="track"><div class="fill" data-w="${100*c.ingested/Math.max(1,c.deep_checked)}" style="background:var(--green)"></div></div></div>
+      <div class="f"><div class="l"><span>Routable today</span><b>${c.routable}</b></div>
+        <div class="track"><div class="fill" data-w="${100*c.routable/Math.max(1,c.deep_checked)}" style="background:var(--purple)"></div></div></div>
+    </div>
+    ${cities.length?`<h3 style="margin-top:18px;font-size:13px;color:var(--muted)">Live on this instance</h3>
+      ${cities.map(x=>`<div class="dstat" style="grid-template-columns:1fr;margin-top:8px"><div class="s">
+        <div class="l">${x.city} · ${x.timezone||""}</div>
+        <div class="v" style="font-size:14px">${x.routes} routes · ${x.stops.toLocaleString()} stops · ${x.trips.toLocaleString()} trips/day</div>
+      </div></div>`).join("")}`:""}
+    <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" href="/feeds?country=${cc}" target="_blank">Feeds API →</a>
+      <a class="btn" href="/gbfs/systems?country=${cc}" target="_blank">GBFS API →</a>
+    </div>`;
+  armRings(body); armBars();
+  document.getElementById("drawer").classList.add("open");
+}
+function closeDrawer(){document.getElementById("drawer").classList.remove("open");}
+
+/* ── global search ──────────────────────────────────────────────────────── */
+const q=document.getElementById("q"),res=document.getElementById("results");
+let feedIndex=null;
+async function ensureIndex(){
+  if(feedIndex)return;
+  const r=await fetch("/feeds?limit=2000"); feedIndex=(await r.json()).feeds;
+}
+q.addEventListener("input",async()=>{
+  const s=q.value.trim().toLowerCase();
+  if(s.length<2){res.classList.remove("open");return;}
+  await ensureIndex();
+  const hits=[];
+  DATA.countries.forEach(c=>{if(c.country.toLowerCase().includes(s))hits.push({t:"country",label:FLAG(c.country)+" "+c.country,cc:c.country});});
+  feedIndex.forEach(f=>{
+    if(hits.length>=12)return;
+    if((f.city||"").toLowerCase().includes(s)||(f.agency||"").toLowerCase().includes(s)||f.feed.toLowerCase().includes(s))
+      hits.push({t:f.ingested?"live":"feed",label:`${f.city||f.feed} · ${f.country||""}`,cc:f.country,sub:f.feed});});
+  res.innerHTML=hits.slice(0,12).map(h=>
+    `<div class="row" data-cc="${h.cc||""}"><span class="tag">${h.t}</span><span>${h.label}</span>
+     ${h.sub?`<span style="margin-left:auto;color:var(--soft);font:11px var(--mono)">${h.sub}</span>`:""}</div>`).join("")
+    ||`<div class="row"><span style="color:var(--soft)">No matches</span></div>`;
+  res.classList.add("open");
+  res.querySelectorAll(".row[data-cc]").forEach(r2=>r2.onclick=()=>{if(r2.dataset.cc){openDrawer(r2.dataset.cc);}res.classList.remove("open");q.value="";});
+});
+document.addEventListener("click",e=>{if(!e.target.closest(".search"))res.classList.remove("open");});
+
+/* ── export ─────────────────────────────────────────────────────────────── */
+document.getElementById("exportBtn").onclick=()=>{
+  const rows=DATA.countries.filter(matches);
+  const csv=["country,score,tier,feeds,alive,cities,median_ms,gbfs_systems,realtime_feeds",
+    ...rows.map(c=>[c.country,c.score,c.tier,c.feeds,c.alive,c.cities,c.median_ms,c.gbfs_systems,c.realtime_feeds].join(","))].join("\n");
+  const pick=confirm("OK = download CSV · Cancel = download JSON");
+  const blob=new Blob([pick?csv:JSON.stringify(rows,null,1)],{type:pick?"text/csv":"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="transit-intelligence."+(pick?"csv":"json");a.click();URL.revokeObjectURL(a.href);};
+
+/* ── keyboard ───────────────────────────────────────────────────────────── */
+document.addEventListener("keydown",e=>{
+  if(e.key==="/"&&document.activeElement!==q){e.preventDefault();q.focus();}
+  if(e.key==="Escape"){closeDrawer();res.classList.remove("open");q.blur();}
+  if(e.key==="t"&&document.activeElement!==q)document.getElementById("themeBtn").click();
+});
+</script>
+</body>
+</html>
