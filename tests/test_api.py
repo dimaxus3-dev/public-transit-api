@@ -162,8 +162,12 @@ def test_rate_limit_kicks_in(client, monkeypatch):
     import app.main as m
     monkeypatch.setattr(m, "_RATE", 3)
     m._hits.clear()
-    codes = [client.get("/health").status_code for _ in range(5)]
-    assert 429 in codes
+    responses = [client.get("/health") for _ in range(5)]
+    limited = [r for r in responses if r.status_code == 429]
+    assert limited
+    # 429 must honour the RFC 7807 contract like every other error
+    assert limited[0].headers["content-type"].startswith("application/problem+json")
+    assert limited[0].json()["title"] == "Too Many Requests"
     monkeypatch.setattr(m, "_RATE", 120)
     m._hits.clear()
 
@@ -455,3 +459,34 @@ def test_departures_after_midnight_gtfs_times(transfer_feed, tmp_path):
         assert night["in_minutes"] == 25
     finally:
         shutil.rmtree(os.path.join(ROOT, "data", fid), ignore_errors=True)
+
+
+def test_ingest_status_endpoint(client, monkeypatch):
+    import app.main as m
+
+    r = client.get("/ingests/definitely-not-a-feed")
+    assert r.status_code == 404
+    # feed ingested outside this process (the session fixture)
+    assert client.get(f"/ingests/{FID}").json()["status"] == "completed"
+    # registered but never touched
+    world_id = next(f for f in m._FEEDS if f.startswith("mdb-")
+                    and f not in m.store.available_feeds())
+    assert client.get(f"/ingests/{world_id}").json()["status"] == "not started"
+
+    # full lifecycle: queued -> running -> failed with a safe error
+    monkeypatch.setattr(m, "_ADMIN_KEY", "sekret")
+    monkeypatch.setitem(m._FEEDS, "boom-feed", {"id": "boom-feed"})
+
+    def exploding_ingest(feed):
+        raise ValueError("secret path /etc/passwd must not leak fully " + "x" * 400)
+
+    monkeypatch.setattr(m.ingest_mod, "ingest", exploding_ingest)
+    r = client.post("/feeds/boom-feed/ingest", headers={"X-API-Key": "sekret"})
+    assert r.json()["poll"] == "/ingests/boom-feed"
+    # TestClient runs background tasks before returning -> job already final
+    job = client.get("/ingests/boom-feed").json()
+    assert job["status"] == "failed"
+    assert job["error"].startswith("ValueError:")
+    assert len(job["error"]) < 220                 # bounded, safe message
+    assert "finished_at" in job and "started_at" in job
+    assert "boom-feed" not in m._ingesting          # slot released
