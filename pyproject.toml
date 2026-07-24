@@ -1,0 +1,49 @@
+[project]
+name = "public-transit-api"
+version = "1.0.0"
+description = "Keyless FastAPI backend for public transport in 1500+ cities: GTFS → map geometry, departure boards, journey planning, live vehicles"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "dimaxus3-dev" }]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "httpx", "ruff", "bandit", "pip-audit"]
+
+[project.urls]
+Homepage = "https://github.com/dimaxus3-dev/public-transit-api"
+Issues = "https://github.com/dimaxus3-dev/public-transit-api/issues"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = [
+    "S310",   # urllib urlopen with validated registry/feed URLs is the point
+    "S603",   # subprocess without shell, fixed argv — intentional
+    "S608",   # SQL built from counted "?" placeholders only, never values
+    "UP007",  # keep Optional[] style — 3.9 runtime compatibility
+    "UP045",
+    "E741",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S311", "B017", "E501"]  # asserts, broad raises, long fixture strings
+"scripts/*" = ["S311"]            # non-crypto sampling
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/__init__.py"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "data"]
+skips = ["B310", "B603", "B608", "B110"]  # + B110: intentional degrade-and-continue spots

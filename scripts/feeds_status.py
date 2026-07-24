@@ -8,6 +8,7 @@ has one, its GTFS-Realtime feeds.
 These feeds ARE the only external dependency of the city-transit API (no keys,
 no other services). stdlib only.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,12 +30,15 @@ def status(url: str, timeout: int = 30) -> tuple[int, str]:
         req = urllib.request.Request(url, method=method, headers={**UA, **extra})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                size = r.headers.get("Content-Length") or r.headers.get("Content-Range", "").split("/")[-1]
-                mb = f"{int(size)/1_000_000:.1f}MB" if size and size.isdigit() else "?"
+                size = (
+                    r.headers.get("Content-Length")
+                    or r.headers.get("Content-Range", "").split("/")[-1]
+                )
+                mb = f"{int(size) / 1_000_000:.1f}MB" if size and size.isdigit() else "?"
                 return (200 if r.status in (200, 206) else r.status), mb
         except urllib.error.HTTPError as e:
             if e.code in (403, 405, 501) and method == "HEAD":
-                continue                       # try the ranged GET instead
+                continue  # try the ranged GET instead
             return e.code, ""
         except Exception as e:  # noqa: BLE001
             return 0, f"{type(e).__name__}"
@@ -43,8 +47,10 @@ def status(url: str, timeout: int = 30) -> tuple[int, str]:
 
 def main():
     feeds = json.load(open(os.path.join(ROOT, "feeds.json")))["feeds"]
-    print(f"\n  GTFS feed status — {len(feeds)} registered cities  "
-          f"({time.strftime('%Y-%m-%d %H:%M')})\n")
+    print(
+        f"\n  GTFS feed status — {len(feeds)} registered cities  "
+        f"({time.strftime('%Y-%m-%d %H:%M')})\n"
+    )
 
     ok = rt = 0
     for f in feeds:
@@ -59,7 +65,11 @@ def main():
         ms = int((time.time() - t) * 1000)
         mark = "✅" if code == 200 else ("⚠️" if 400 <= code < 500 else "❌")
 
-        rt_urls = [k for k in ("gtfs_rt_vehicles_url", "gtfs_rt_trips_url", "gtfs_rt_alerts_url") if f.get(k)]
+        rt_urls = [
+            k
+            for k in ("gtfs_rt_vehicles_url", "gtfs_rt_trips_url", "gtfs_rt_alerts_url")
+            if f.get(k)
+        ]
         rt_note = ""
         if rt_urls:
             rc, _ = status(f[rt_urls[0]], timeout=15)
@@ -68,13 +78,17 @@ def main():
             if rc == 200:
                 rt += 1
 
-        print(f"  {mark}  {flag}  {f['id']:18} HTTP {code:<3} {ms:>5}ms  {size:>7}   "
-              f"{f.get('city_region', '')[:22]:22}{rt_note}")
+        print(
+            f"  {mark}  {flag}  {f['id']:18} HTTP {code:<3} {ms:>5}ms  {size:>7}   "
+            f"{f.get('city_region', '')[:22]:22}{rt_note}"
+        )
         if code == 200:
             ok += 1
 
-    print(f"\n  {ok}/{len(feeds)} static feeds answering HTTP 200 · "
-          f"{rt} cities with a live GTFS-Realtime feed\n")
+    print(
+        f"\n  {ok}/{len(feeds)} static feeds answering HTTP 200 · "
+        f"{rt} cities with a live GTFS-Realtime feed\n"
+    )
     sys.exit(0 if ok else 1)
 
 

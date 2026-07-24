@@ -9,7 +9,20 @@ services:
       # Optional hardening — see README.
       - RATE_LIMIT=120          # req/min per IP (0 = off)
       - CORS_ORIGINS=*          # comma-separated origins
-      # - ADMIN_KEY=change-me   # protects POST /feeds/{id}/ingest
+      # - ADMIN_KEY=change-me   # enables + protects POST /feeds/{id}/ingest
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
 
 volumes:
   transit-data:

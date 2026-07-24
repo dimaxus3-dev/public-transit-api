@@ -4,6 +4,7 @@ Builds a 3-stop tram feed as a real GTFS zip, ingests it through the actual
 ingest pipeline (via a file:// URL), then exercises the HTTP API with
 fastapi's TestClient. No network, no external data.
 """
+
 import io
 import json
 import os
@@ -18,9 +19,11 @@ FID = "test-fixture"
 DATA_DIR = os.path.join(ROOT, "data", FID)
 
 # Three stops along one street in a made-up city.
-STOPS = [("A", "Alpha", 50.0000, 20.0000),
-         ("B", "Bravo", 50.0050, 20.0050),
-         ("C", "Charlie", 50.0100, 20.0100)]
+STOPS = [
+    ("A", "Alpha", 50.0000, 20.0000),
+    ("B", "Bravo", 50.0050, 20.0050),
+    ("C", "Charlie", 50.0100, 20.0100),
+]
 
 
 def _gtfs_zip() -> bytes:
@@ -28,16 +31,26 @@ def _gtfs_zip() -> bytes:
         return "\n".join(lines) + "\n"
 
     files = {
-        "agency.txt": csv("agency_id,agency_name,agency_url,agency_timezone",
-                          "ag,Test Agency,https://example.com,Europe/Warsaw"),
-        "routes.txt": csv("route_id,route_short_name,route_long_name,route_type,route_color",
-                          "T1,1,Alpha - Charlie,0,005E85"),
-        "stops.txt": csv("stop_id,stop_name,stop_lat,stop_lon",
-                         *[f"{sid},{name},{lat},{lon}" for sid, name, lat, lon in STOPS]),
-        "shapes.txt": csv("shape_id,shape_pt_sequence,shape_pt_lat,shape_pt_lon",
-                          *[f"s1,{i},{lat},{lon}" for i, (_, _, lat, lon) in enumerate(STOPS)]),
-        "calendar.txt": csv("service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date",
-                            "daily,1,1,1,1,1,1,1,20200101,20351231"),
+        "agency.txt": csv(
+            "agency_id,agency_name,agency_url,agency_timezone",
+            "ag,Test Agency,https://example.com,Europe/Warsaw",
+        ),
+        "routes.txt": csv(
+            "route_id,route_short_name,route_long_name,route_type,route_color",
+            "T1,1,Alpha - Charlie,0,005E85",
+        ),
+        "stops.txt": csv(
+            "stop_id,stop_name,stop_lat,stop_lon",
+            *[f"{sid},{name},{lat},{lon}" for sid, name, lat, lon in STOPS],
+        ),
+        "shapes.txt": csv(
+            "shape_id,shape_pt_sequence,shape_pt_lat,shape_pt_lon",
+            *[f"s1,{i},{lat},{lon}" for i, (_, _, lat, lon) in enumerate(STOPS)],
+        ),
+        "calendar.txt": csv(
+            "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date",
+            "daily,1,1,1,1,1,1,1,20200101,20351231",
+        ),
         "calendar_dates.txt": csv("service_id,date,exception_type"),
     }
     # A tram every 30 minutes, 05:00–23:30, A -> B -> C (5 min per hop).
@@ -65,6 +78,7 @@ def ingested_fixture(tmp_path_factory):
     zip_path = tmp_path_factory.mktemp("gtfs") / "fixture.zip"
     zip_path.write_bytes(_gtfs_zip())
     from app import ingest
+
     summary = ingest.ingest({"id": FID, "gtfs_static_url": zip_path.as_uri()})
     assert summary["routes"] == 1 and summary["stops"] == 3
     yield
@@ -74,6 +88,7 @@ def ingested_fixture(tmp_path_factory):
 @pytest.fixture(scope="session")
 def client():
     from app.main import app
+
     return TestClient(app)
 
 
@@ -81,7 +96,7 @@ def test_health_lists_fixture(client):
     data = client.get("/health").json()
     assert data["ok"] is True
     assert FID in data["ingested_feeds"]
-    assert data["registered_feeds"] > 1000        # world catalog is loaded
+    assert data["registered_feeds"] > 1000  # world catalog is loaded
 
 
 def test_feeds_browse_and_filters(client):
@@ -104,29 +119,35 @@ def test_routes_and_geometry(client):
     assert [r["route_id"] for r in routes] == ["T1"]
     assert routes[0]["mode"] == "tram"
     geo = client.get(f"/routes/{FID}/T1/geometry").json()
-    assert geo["features"][0]["geometry"]["coordinates"] == [
-        [lon, lat] for _, _, lat, lon in STOPS]
+    assert geo["features"][0]["geometry"]["coordinates"] == [[lon, lat] for _, _, lat, lon in STOPS]
 
 
 def test_stops_nearby(client):
-    near = client.get("/stops/nearby", params={
-        "city": FID, "lat": 50.0001, "lng": 20.0001, "radius": 300}).json()
+    near = client.get(
+        "/stops/nearby", params={"city": FID, "lat": 50.0001, "lng": 20.0001, "radius": 300}
+    ).json()
     assert [s["name"] for s in near] == ["Alpha"]
 
 
 def test_departures_board(client):
-    deps = client.get(f"/stops/{FID}/A/departures",
-                      params={"limit": 3}).json()
+    deps = client.get(f"/stops/{FID}/A/departures", params={"limit": 3}).json()
     assert deps["stop_name"] == "Alpha"
     assert len(deps["departures"]) > 0
     assert all(d["route"] == "1" for d in deps["departures"])
 
 
 def test_journey_plans_a_to_c(client):
-    plan = client.get("/journey", params={
-        "city": FID, "from_lat": 50.0, "from_lon": 20.0,
-        "to_lat": 50.01, "to_lon": 20.01,
-        "time": "2030-06-03T09:00:00"}).json()
+    plan = client.get(
+        "/journey",
+        params={
+            "city": FID,
+            "from_lat": 50.0,
+            "from_lon": 20.0,
+            "to_lat": 50.01,
+            "to_lon": 20.01,
+            "time": "2030-06-03T09:00:00",
+        },
+    ).json()
     assert plan["itineraries"], "no itinerary found"
     it = plan["itineraries"][0]
     rides = [l for l in it["legs"] if l["type"] == "ride"]
@@ -137,14 +158,14 @@ def test_journey_plans_a_to_c(client):
 
 def test_ingest_endpoint_locked_down_by_default(client, monkeypatch):
     import app.main as m
+
     monkeypatch.setitem(m._FEEDS, FID, {"id": FID})
     # No ADMIN_KEY on the server -> ingest is disabled entirely.
     assert client.post(f"/feeds/{FID}/ingest").status_code == 403
     # Key set -> requires the right X-API-Key.
     monkeypatch.setattr(m, "_ADMIN_KEY", "sekret")
     assert client.post(f"/feeds/{FID}/ingest").status_code == 401
-    assert client.post(f"/feeds/{FID}/ingest",
-                       headers={"X-API-Key": "wrong"}).status_code == 401
+    assert client.post(f"/feeds/{FID}/ingest", headers={"X-API-Key": "wrong"}).status_code == 401
     hdr = {"X-API-Key": "sekret"}
     r = client.post("/feeds/definitely-not-a-feed/ingest", headers=hdr)
     assert r.status_code == 404
@@ -153,13 +174,13 @@ def test_ingest_endpoint_locked_down_by_default(client, monkeypatch):
     # Concurrency cap: with 2 ingests already running, a third is rejected
     # (force=true skips the already-ingested short-circuit).
     monkeypatch.setattr(m, "_ingesting", {"a", "b"})
-    r = client.post("/feeds/mdb-1063/ingest", headers=hdr,
-                    params={"force": "true"})
+    r = client.post("/feeds/mdb-1063/ingest", headers=hdr, params={"force": "true"})
     assert r.status_code == 429
 
 
 def test_rate_limit_kicks_in(client, monkeypatch):
     import app.main as m
+
     monkeypatch.setattr(m, "_RATE", 3)
     m._hits.clear()
     responses = [client.get("/health") for _ in range(5)]
@@ -178,7 +199,7 @@ def test_errors_are_rfc7807(client):
     assert r.headers["content-type"].startswith("application/problem+json")
     body = r.json()
     assert body["status"] == 404 and "title" in body and "detail" in body
-    v = client.get("/journey", params={"city": FID})       # missing lat/lon
+    v = client.get("/journey", params={"city": FID})  # missing lat/lon
     assert v.status_code == 422
     assert v.headers["content-type"].startswith("application/problem+json")
 
@@ -200,7 +221,9 @@ def test_vehicles_stream_rejects_feed_without_rt(client):
 
 
 def test_python_sdk_against_test_app(client, monkeypatch):
-    import sys, os
+    import os
+    import sys
+
     sys.path.insert(0, os.path.join(ROOT, "clients", "python"))
     import transit_client as tc
 
@@ -235,8 +258,7 @@ def test_delays_degrade_to_static_schedule(client, monkeypatch):
         attempts["n"] += 1
         raise OSError("connection reset")
 
-    monkeypatch.setitem(m._FEEDS, FID,
-                        {"id": FID, "gtfs_rt_trips_url": "http://rt.example/pb"})
+    monkeypatch.setitem(m._FEEDS, FID, {"id": FID, "gtfs_rt_trips_url": "http://rt.example/pb"})
     monkeypatch.setattr(realtime.urllib.request, "urlopen", dead_urlopen)
     realtime._DELAY_CACHE.pop(FID, None)
     realtime._delay_fail_at.pop(FID, None)
@@ -244,18 +266,18 @@ def test_delays_degrade_to_static_schedule(client, monkeypatch):
     for _ in range(3):
         r = client.get(f"/stops/{FID}/A/departures", params={"limit": 3})
         assert r.status_code == 200
-        assert all(not d["live"] and d["delay_sec"] == 0
-                   for d in r.json()["departures"])
-    assert attempts["n"] == 1          # backoff: one probe, not one per request
+        assert all(not d["live"] and d["delay_sec"] == 0 for d in r.json()["departures"])
+    assert attempts["n"] == 1  # backoff: one probe, not one per request
 
     realtime._delay_fail_at.pop(FID, None)
 
 
 def test_vehicles_serve_stale_frame_when_upstream_dies(monkeypatch):
-    from app import realtime
     import time as _t
 
-    realtime._CACHE["ghost"] = (_t.time() - 10, [{"id": "v1"}])   # stale but recent
+    from app import realtime
+
+    realtime._CACHE["ghost"] = (_t.time() - 10, [{"id": "v1"}])  # stale but recent
     realtime._fail_at.pop("ghost", None)
 
     def dead_urlopen(*a, **kw):
@@ -268,7 +290,7 @@ def test_vehicles_serve_stale_frame_when_upstream_dies(monkeypatch):
     realtime._fail_at.pop("ghost", None)
     with pytest.raises(Exception):
         realtime.vehicles_live("ghost", "http://rt.example/pb")
-    with pytest.raises(RuntimeError, match="backoff"):            # instant, no fetch
+    with pytest.raises(RuntimeError, match="backoff"):  # instant, no fetch
         realtime.vehicles_live("ghost", "http://rt.example/pb")
 
     realtime._CACHE.pop("ghost", None)
@@ -278,14 +300,16 @@ def test_vehicles_serve_stale_frame_when_upstream_dies(monkeypatch):
 def test_prewarm_builds_ram_caches(client):
     import app.main as m
     from app import routing
+
     routing._stops.cache_clear()
     routing._day_connections.cache_clear()
-    assert m._prewarm_feeds() >= 1                     # fixture feed warmed
+    assert m._prewarm_feeds() >= 1  # fixture feed warmed
     assert routing._stops.cache_info().currsize >= 1
     assert routing._day_connections.cache_info().currsize >= 1
 
 
 # ── ingest hardening ─────────────────────────────────────────────────────────
+
 
 def _zip_of(files: dict) -> bytes:
     buf = io.BytesIO()
@@ -304,8 +328,7 @@ def test_ingest_rejects_corrupted_and_hostile_zips(tmp_path):
         ingest.ingest({"id": "evil-1", "gtfs_static_url": bad.as_uri()})
 
     traversal = tmp_path / "traversal.zip"
-    traversal.write_bytes(_zip_of({"../../escape.txt": "boom",
-                                   "routes.txt": "route_id\nX"}))
+    traversal.write_bytes(_zip_of({"../../escape.txt": "boom", "routes.txt": "route_id\nX"}))
     with pytest.raises(ValueError, match="suspicious zip entry"):
         ingest.ingest({"id": "evil-2", "gtfs_static_url": traversal.as_uri()})
 
@@ -322,7 +345,8 @@ def test_ingest_rejects_corrupted_and_hostile_zips(tmp_path):
 
 def test_ingest_download_size_cap(tmp_path, monkeypatch):
     from app import ingest
-    monkeypatch.setattr(ingest, "MAX_ZIP_MB", 0)      # cap = 0 bytes
+
+    monkeypatch.setattr(ingest, "MAX_ZIP_MB", 0)  # cap = 0 bytes
     z = tmp_path / "any.zip"
     z.write_bytes(_zip_of({"routes.txt": "route_id\nX"}))
     with pytest.raises(ValueError, match="exceeds 0 MB"):
@@ -341,19 +365,18 @@ def test_reingest_is_atomic_and_busts_caches(client, tmp_path):
     # v2 of the fixture: same city, route renamed to T2.
     v2 = {
         "agency.txt": "agency_id,agency_name,agency_url,agency_timezone\n"
-                      "ag,T,https://x,Europe/Warsaw\n",
+        "ag,T,https://x,Europe/Warsaw\n",
         "routes.txt": "route_id,route_short_name,route_type\nT2,2,0\n",
         "stops.txt": "stop_id,stop_name,stop_lat,stop_lon\n"
-                     + "".join(f"{sid},{name},{lat},{lon}\n" for sid, name, lat, lon in STOPS),
+        + "".join(f"{sid},{name},{lat},{lon}\n" for sid, name, lat, lon in STOPS),
         "calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,"
-                        "saturday,sunday,start_date,end_date\n"
-                        "daily,1,1,1,1,1,1,1,20200101,20351231\n",
+        "saturday,sunday,start_date,end_date\n"
+        "daily,1,1,1,1,1,1,1,20200101,20351231\n",
         "trips.txt": "route_id,service_id,trip_id,direction_id,shape_id\nT2,daily,t0,0,s1\n",
         "stop_times.txt": "trip_id,stop_id,departure_time,stop_sequence\n"
-                          "t0,A,09:00:00,0\nt0,B,09:05:00,1\nt0,C,09:10:00,2\n",
+        "t0,A,09:00:00,0\nt0,B,09:05:00,1\nt0,C,09:10:00,2\n",
         "shapes.txt": "shape_id,shape_pt_sequence,shape_pt_lat,shape_pt_lon\n"
-                      + "".join(f"s1,{i},{lat},{lon}\n"
-                                for i, (_, _, lat, lon) in enumerate(STOPS)),
+        + "".join(f"s1,{i},{lat},{lon}\n" for i, (_, _, lat, lon) in enumerate(STOPS)),
     }
     p = tmp_path / "v2.zip"
     p.write_bytes(_zip_of(v2))
@@ -375,6 +398,7 @@ def test_world_feed_timezone_captured_at_ingest():
     summary = json.load(open(os.path.join(ROOT, "data", FID, "summary.json")))
     assert summary["timezone"] == "Europe/Warsaw"
     import app.main as m
+
     assert m._feed_timezone(FID) == "Europe/Warsaw"
 
 
@@ -388,26 +412,29 @@ def transfer_feed(tmp_path_factory):
     """Two routes meeting at B: R1 A->B arrives 09:00; R2 departs B at 09:10
     and at 10:10. A 15-min delay on R1 must push the plan onto the 10:10.
     Stops are ~3.3 km apart so walking can never beat the ride."""
-    stops_csv = "stop_id,stop_name,stop_lat,stop_lon\n" \
-                "A,Alpha,50.0,20.0\nB,Bravo,50.03,20.0\nC,Charlie,50.06,20.0\n"
+    stops_csv = (
+        "stop_id,stop_name,stop_lat,stop_lon\n"
+        "A,Alpha,50.0,20.0\nB,Bravo,50.03,20.0\nC,Charlie,50.06,20.0\n"
+    )
     files = {
         "agency.txt": "agency_id,agency_name,agency_url,agency_timezone\n"
-                      "ag,T,https://x,Europe/Warsaw\n",
+        "ag,T,https://x,Europe/Warsaw\n",
         "routes.txt": "route_id,route_short_name,route_type\nR1,1,3\nR2,2,3\n",
         "stops.txt": stops_csv,
         "calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,"
-                        "saturday,sunday,start_date,end_date\n"
-                        "daily,1,1,1,1,1,1,1,20200101,20351231\n",
+        "saturday,sunday,start_date,end_date\n"
+        "daily,1,1,1,1,1,1,1,20200101,20351231\n",
         "trips.txt": "route_id,service_id,trip_id,direction_id\n"
-                     "R1,daily,r1,0\nR2,daily,r2a,0\nR2,daily,r2b,0\n",
+        "R1,daily,r1,0\nR2,daily,r2a,0\nR2,daily,r2b,0\n",
         "stop_times.txt": "trip_id,stop_id,departure_time,stop_sequence\n"
-                          "r1,A,08:40:00,0\nr1,B,09:00:00,1\n"
-                          "r2a,B,09:10:00,0\nr2a,C,09:30:00,1\n"
-                          "r2b,B,10:10:00,0\nr2b,C,10:30:00,1\n",
+        "r1,A,08:40:00,0\nr1,B,09:00:00,1\n"
+        "r2a,B,09:10:00,0\nr2a,C,09:30:00,1\n"
+        "r2b,B,10:10:00,0\nr2b,C,10:30:00,1\n",
     }
     p = tmp_path_factory.mktemp("gtfs2") / "transfer.zip"
     p.write_bytes(_zip_of(files))
     from app import ingest
+
     ingest.ingest({"id": TRANSFER_FID, "gtfs_static_url": p.as_uri()})
     yield
     shutil.rmtree(os.path.join(ROOT, "data", TRANSFER_FID), ignore_errors=True)
@@ -415,35 +442,40 @@ def transfer_feed(tmp_path_factory):
 
 def test_delay_reroutes_impossible_transfer(transfer_feed):
     import datetime as dt
+
     from app import routing
+
     routing._day_connections.cache_clear()
     when = dt.datetime(2030, 6, 3, 8, 30)
 
     static = routing.plan(TRANSFER_FID, 50.0, 20.0, 50.06, 20.0, when)[0]
-    assert static["arrive"].endswith("09:30")          # catches the 09:10
+    assert static["arrive"].endswith("09:30")  # catches the 09:10
 
-    live = routing.plan(TRANSFER_FID, 50.0, 20.0, 50.06, 20.0, when,
-                        delays={"r1": 900})[0]         # R1 +15 min -> B at 09:15
-    assert live["arrive"].endswith("10:30")            # 09:10 now impossible
+    live = routing.plan(TRANSFER_FID, 50.0, 20.0, 50.06, 20.0, when, delays={"r1": 900})[
+        0
+    ]  # R1 +15 min -> B at 09:15
+    assert live["arrive"].endswith("10:30")  # 09:10 now impossible
     rides = [l for l in live["legs"] if l["type"] == "ride"]
     assert rides[0]["delay_sec"] == 900 and rides[0]["live"]
 
 
 def test_departures_after_midnight_gtfs_times(transfer_feed, tmp_path):
     """GTFS 24:xx/25:xx times must appear on late-night boards (day_offset)."""
-    from app import ingest, schedule
     import datetime as dt
+
+    from app import ingest, schedule
+
     files_late = {
         "agency.txt": "agency_id,agency_name,agency_url,agency_timezone\n"
-                      "ag,T,https://x,Europe/Warsaw\n",
+        "ag,T,https://x,Europe/Warsaw\n",
         "routes.txt": "route_id,route_short_name,route_type\nN1,N1,3\n",
         "stops.txt": "stop_id,stop_name,stop_lat,stop_lon\nA,Alpha,50.0,20.0\nB,Bravo,50.005,20.005\n",
         "calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,"
-                        "saturday,sunday,start_date,end_date\n"
-                        "daily,1,1,1,1,1,1,1,20200101,20351231\n",
+        "saturday,sunday,start_date,end_date\n"
+        "daily,1,1,1,1,1,1,1,20200101,20351231\n",
         "trips.txt": "route_id,service_id,trip_id,direction_id\nN1,daily,n1,0\n",
         "stop_times.txt": "trip_id,stop_id,departure_time,stop_sequence\n"
-                          "n1,A,24:15:00,0\nn1,B,25:05:00,1\n",
+        "n1,A,24:15:00,0\nn1,B,25:05:00,1\n",
     }
     p = tmp_path / "night.zip"
     p.write_bytes(_zip_of(files_late))
@@ -469,8 +501,9 @@ def test_ingest_status_endpoint(client, monkeypatch):
     # feed ingested outside this process (the session fixture)
     assert client.get(f"/ingests/{FID}").json()["status"] == "completed"
     # registered but never touched
-    world_id = next(f for f in m._FEEDS if f.startswith("mdb-")
-                    and f not in m.store.available_feeds())
+    world_id = next(
+        f for f in m._FEEDS if f.startswith("mdb-") and f not in m.store.available_feeds()
+    )
     assert client.get(f"/ingests/{world_id}").json()["status"] == "not started"
 
     # full lifecycle: queued -> running -> failed with a safe error
@@ -487,6 +520,6 @@ def test_ingest_status_endpoint(client, monkeypatch):
     job = client.get("/ingests/boom-feed").json()
     assert job["status"] == "failed"
     assert job["error"].startswith("ValueError:")
-    assert len(job["error"]) < 220                 # bounded, safe message
+    assert len(job["error"]) < 220  # bounded, safe message
     assert "finished_at" in job and "started_at" in job
-    assert "boom-feed" not in m._ingesting          # slot released
+    assert "boom-feed" not in m._ingesting  # slot released

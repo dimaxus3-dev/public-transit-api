@@ -8,6 +8,7 @@ color on a dark background, with interchange stops as dots. Pure stdlib —
 the same artifacts the API serves, so the map is exactly what a client
 would draw. Output defaults to docs/maps/<feed_id>.svg.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,12 +16,16 @@ import math
 import os
 import sys
 
-W = 1200                    # canvas width, px; height follows the geo aspect
+W = 1200  # canvas width, px; height follows the geo aspect
 PAD = 40
-BG = "#0d1117"              # GitHub dark-mode canvas — maps blend into the README
-MODE_FALLBACK = {           # per-mode color when the feed ships none
-    "tram": "#e74c3c", "bus": "#4aa3df", "metro": "#f1c40f",
-    "rail": "#9b59b6", "ferry": "#1abc9c", "trolleybus": "#e67e22",
+BG = "#0d1117"  # GitHub dark-mode canvas — maps blend into the README
+MODE_FALLBACK = {  # per-mode color when the feed ships none
+    "tram": "#e74c3c",
+    "bus": "#4aa3df",
+    "metro": "#f1c40f",
+    "rail": "#9b59b6",
+    "ferry": "#1abc9c",
+    "trolleybus": "#e67e22",
 }
 
 
@@ -96,9 +101,11 @@ def render(feed_id: str, out_path: str | None = None, clip_pct: int = 2) -> str:
         mode = p.get("mode", "bus")
         width = {"metro": 3.2, "rail": 2.8, "tram": 2.4}.get(mode, 1.6)
         opacity = {"metro": 0.95, "rail": 0.9, "tram": 0.9}.get(mode, 0.65)
-        paths.append(f'<path d="{d}" stroke="{color}" stroke-width="{width}" '
-                     f'fill="none" stroke-opacity="{opacity}" stroke-linecap="round" '
-                     f'stroke-linejoin="round"/>')
+        paths.append(
+            f'<path d="{d}" stroke="{color}" stroke-width="{width}" '
+            f'fill="none" stroke-opacity="{opacity}" stroke-linecap="round" '
+            f'stroke-linejoin="round"/>'
+        )
 
     # stops: draw only well-connected ones so big networks stay readable
     dots = []
@@ -116,15 +123,31 @@ def render(feed_id: str, out_path: str | None = None, clip_pct: int = 2) -> str:
     title = _feed_title(feed_id)
     label = f"{title} — {n_routes} routes · {len(stops)} stops · {', '.join(modes)}"
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {canvas_w} {H}" width="{canvas_w}" height="{H}">
+    mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+    credit = "rendered from GTFS by scripts/render_map.py"
+    head = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {canvas_w} {H}" '
+        f'width="{canvas_w}" height="{H}">'
+    )
+    label_el = (
+        f'<text x="{PAD}" y="{H - 16}" font-family="{mono}" '
+        f'font-size="15" fill="#8b949e">{label}</text>'
+    )
+    credit_el = (
+        f'<text x="{canvas_w - PAD}" y="{H - 16}" text-anchor="end" '
+        f'font-family="{mono}" font-size="12" fill="#484f58">{credit}</text>'
+    )
+    svg = f"""{head}
 <rect width="{canvas_w}" height="{H}" fill="{BG}" rx="12"/>
 {chr(10).join(paths)}
 {chr(10).join(dots)}
-<text x="{PAD}" y="{H - 16}" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#8b949e">{label}</text>
-<text x="{canvas_w - PAD}" y="{H - 16}" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#484f58">rendered from GTFS by scripts/render_map.py</text>
+{label_el}
+{credit_el}
 </svg>
 """
-    out = out_path or os.path.join(os.path.dirname(__file__), "..", "docs", "maps", f"{feed_id}.svg")
+    out = out_path or os.path.join(
+        os.path.dirname(__file__), "..", "docs", "maps", f"{feed_id}.svg"
+    )
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w") as fh:
         fh.write(svg)
@@ -160,7 +183,7 @@ if __name__ == "__main__":
     if "--clip" in args:
         i = args.index("--clip")
         clip = int(args[i + 1])
-        del args[i:i + 2]
+        del args[i : i + 2]
     if not args:
         raise SystemExit(__doc__)
     render(args[0], args[1] if len(args) > 1 else None, clip_pct=clip)
