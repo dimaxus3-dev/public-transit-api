@@ -189,19 +189,20 @@ GitHub Action, and reproducible any time:
 python3 scripts/check_all.py       # ~2 min on 80 threads, writes docs/STATUS.md
 ```
 
-**🔬 [Deep check](docs/DEEP_CHECK.md)** — HTTP 200 alone proves little, so a
-random sample of **120 world feeds** is pushed through the FULL pipeline:
+**🔬 [Deep check](docs/DEEP_CHECK.md)** — HTTP 200 alone proves little, so
+**every single registered feed — all 1501 —** is pushed through the FULL
+pipeline:
 
 ```
 reachable ──▶ valid GTFS + ingested end-to-end ──▶ routable today
- 114/120                114/120 (95 %)               60/120 (50 %)
+1436/1501              1387/1501 (92 %)             751/1501 (50 %)
 ```
 
 `ingested` proves download → zip validation → parse → schedule DB → atomic
 swap; `routable` additionally proves the CSA router plans a real ride along
 the feed's own trips **today** — the gap is almost entirely expired agency
-calendars (their data, not this pipeline). Reproduce:
-`python3 scripts/deep_check.py 120` (fixed seed, stable sample).
+calendars (their data, not this pipeline; every feed's reason is in the
+report). Reproduce: `python3 scripts/deep_check.py all`.
 
 <sub>Full availability check 2026-07-24: 1436/1501 alive (95 %), median
 response 263 ms. Catalog feeds that need a provider API key (e.g. Bay Area
