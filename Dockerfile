@@ -9,7 +9,9 @@ WORKDIR /srv
 COPY --from=deps /install /usr/local
 COPY app/ app/
 COPY scripts/ scripts/
-COPY feeds.json feeds_world.json ./
+COPY static/ static/
+COPY feeds.json feeds_world.json feeds_gbfs.json ./
+COPY docs/status.json docs/deep_check.json docs/
 
 # Run as a dedicated non-root user; only /srv/data is writable.
 RUN useradd --system --uid 10001 --no-create-home transit \

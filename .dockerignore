@@ -1,5 +1,7 @@
 data/
-docs/
+docs/*
+!docs/status.json
+!docs/deep_check.json
 tests/
 .git/
 __pycache__/
