@@ -86,7 +86,9 @@ async def _rate_limit(request: Request, call_next):
             while q and now - q[0] > 60:
                 q.popleft()
             if len(q) >= _RATE:
-                return JSONResponse({"error": "rate limit exceeded"}, status_code=429)
+                # Same RFC 7807 problem+json contract as every other error.
+                return _problem(429, f"rate limit exceeded ({_RATE} requests/min)",
+                                str(request.url.path))
             q.append(now)
     return await call_next(request)
 
@@ -253,6 +255,9 @@ def countries():
 
 
 _MAX_CONCURRENT_INGESTS = 2
+_ingest_lock = threading.Lock()
+# fid -> {"status": queued|running|completed|failed, "error", timestamps}
+_ingest_jobs: dict = {}
 
 
 def _invalidate_caches():
@@ -265,11 +270,22 @@ def _invalidate_caches():
 
 
 def _do_ingest(fid: str):
+    _ingest_jobs[fid].update(status="running",
+                             started_at=dt.datetime.utcnow().isoformat() + "Z")
     try:
-        ingest_mod.ingest(_FEEDS[fid])
+        summary = ingest_mod.ingest(_FEEDS[fid])
         _invalidate_caches()
+        _ingest_jobs[fid].update(status="completed", summary=summary)
+    except Exception as e:  # noqa: BLE001
+        # Safe, bounded description — full traceback goes to the server log.
+        import logging
+        logging.getLogger("transit").exception("ingest failed for %s", fid)
+        _ingest_jobs[fid].update(status="failed",
+                                 error=f"{type(e).__name__}: {str(e)[:180]}")
     finally:
-        _ingesting.discard(fid)
+        _ingest_jobs[fid]["finished_at"] = dt.datetime.utcnow().isoformat() + "Z"
+        with _ingest_lock:
+            _ingesting.discard(fid)
 
 
 @app.post("/feeds/{feed_id}/ingest")
@@ -294,15 +310,37 @@ def ingest_feed(feed_id: str, background: BackgroundTasks,
     if feed_id in store.available_feeds() and not force:
         return {"status": "already ingested", "feed": feed_id,
                 "hint": "pass ?force=true to refresh"}
-    if feed_id in _ingesting:
-        return {"status": "ingest already running", "feed": feed_id}
-    if len(_ingesting) >= _MAX_CONCURRENT_INGESTS:
-        raise HTTPException(429, f"{_MAX_CONCURRENT_INGESTS} ingests already "
-                                 "running — try again when one finishes")
-    _ingesting.add(feed_id)
+    # Check-and-reserve atomically — two racing requests can't both pass.
+    with _ingest_lock:
+        if feed_id in _ingesting:
+            return {"status": "ingest already running", "feed": feed_id,
+                    "poll": f"/ingests/{feed_id}"}
+        if len(_ingesting) >= _MAX_CONCURRENT_INGESTS:
+            raise HTTPException(429, f"{_MAX_CONCURRENT_INGESTS} ingests already "
+                                     "running — try again when one finishes")
+        _ingesting.add(feed_id)
+    _ingest_jobs[feed_id] = {"feed": feed_id, "status": "queued",
+                             "queued_at": dt.datetime.utcnow().isoformat() + "Z"}
     background.add_task(_do_ingest, feed_id)
     return {"status": "ingest started", "feed": feed_id,
-            "check": f"/health until '{feed_id}' appears in ingested_feeds"}
+            "poll": f"/ingests/{feed_id}"}
+
+
+@app.get("/ingests/{feed_id}")
+def ingest_status(feed_id: str):
+    """Status of an ingest started via POST /feeds/{id}/ingest:
+    `queued → running → completed | failed` (with a safe error message).
+    For feeds ingested outside this process (CLI), reports `completed` when
+    the artifacts exist."""
+    job = _ingest_jobs.get(feed_id)
+    if job:
+        return job
+    if feed_id in store.available_feeds():
+        return {"feed": feed_id, "status": "completed",
+                "note": "ingested outside this process"}
+    if feed_id not in _FEEDS:
+        raise HTTPException(404, f"unknown feed '{feed_id}' — see /feeds")
+    return {"feed": feed_id, "status": "not started"}
 
 
 # ── routes & map geometry ────────────────────────────────────────────────────

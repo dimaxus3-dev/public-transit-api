@@ -45,6 +45,68 @@ python3 scripts/render_map.py <feed-id>      # re-draw any ingested city
 
 ---
 
+## 💡 What is this and what problem does it solve?
+
+**The problem.** Every transit agency on Earth publishes its schedules as
+**GTFS** — a zip of CSV files (routes, stops, timetables) that is a *data
+dump*, not an API. You can't ask a zip "when is my next tram?" or "how do I
+get from A to B?". Commercial APIs that answer those questions cost money,
+need API keys, and cover a fraction of cities.
+
+**A "feed"** = one agency's GTFS package — usually one city (Kielce), sometimes
+a region (Berlin-Brandenburg) or a whole national network (PKP rail). This
+repo's registry knows **1500+ feeds in 71 countries**, each identified by a
+short id like `nyc-subway` or `mdb-648` (Vienna).
+
+**What this API does.** Point it at any feed id and it turns the raw zip into
+things you can actually build on:
+
+| You ask | You get |
+|---|---|
+| "Draw the network" | Map-ready GeoJSON lines in real route colors + all stops |
+| "When's the next bus at this stop?" | A live departure board (with realtime delays where published) |
+| "How do I get from A to B?" | A door-to-door journey: walk → ride → transfer → ride → walk |
+| "Where are the vehicles right now?" | Live GTFS-RT positions, polled or streamed over SSE |
+
+No API keys, no external database, no paid services — one Python process.
+
+### 🧑‍💻 Use it in five minutes — common scenarios
+
+**1. City transit map for a web/mobile app**
+
+```bash
+python -m app.ingest mdb-648                  # Vienna, one command
+curl "localhost:8000/map/mdb-648/lines.geojson"   # draw this on MapLibre/Leaflet
+curl "localhost:8000/stops/nearby?city=mdb-648&lat=48.208&lng=16.373&radius=500"
+```
+
+**2. "My stop" departure widget** (home dashboard, e-ink display, Slack bot…)
+
+```bash
+curl "localhost:8000/stops/szczecin-zditm/11511/departures?limit=5"
+# → route 12 tram in 7 min (live, +131 s delay), bus 101 in 0 min …
+```
+
+**3. Door-to-door journey planner**
+
+```bash
+curl "localhost:8000/journey?city=szczecin-zditm&from_lat=53.428&from_lon=14.552&to_lat=53.44&to_lon=14.49"
+# → walk 6 min → tram 5 (12 stops, live −2 s) → walk 5 min, 31 min total
+```
+
+**4. Live vehicles on a map** — one line of JS:
+
+```js
+new EventSource("/vehicles/stream?city=szczecin-zditm")
+  .onmessage = e => drawMarkers(JSON.parse(e.data).vehicles);
+```
+
+**5. Research / data analysis** — every ingested city leaves clean artifacts
+(`lines.geojson`, `stops.json`, `gtfs.sqlite`) you can load straight into
+pandas/QGIS, plus `scripts/render_map.py` for instant network posters.
+
+---
+
 ## 🚦 Curated feed status — what works & what doesn't
 
 GTFS feeds are the *only* external dependency here, so "checking the APIs"
@@ -351,12 +413,14 @@ curl "http://127.0.0.1:8000/journey?city=szczecin-zditm&from_lat=53.428&from_lon
 ### Tests & CI
 
 ```bash
-pip install pytest httpx && pytest tests/ -q     # 9 end-to-end API tests
+pip install pytest httpx && pytest tests/ -q     # 23 end-to-end API tests
 ```
 
-The suite builds a tiny synthetic GTFS feed, runs it through the real ingest
-pipeline and exercises every core endpoint — no network needed. GitHub Actions
-runs it on Python 3.9 + 3.12 and builds the Docker image on every push.
+The suite builds tiny synthetic GTFS feeds, runs them through the real ingest
+pipeline and exercises every endpoint — plus hostile-zip rejection, atomic
+re-ingest, live-delay rerouting, after-midnight boards, RFC 7807 error shape
+and the ingest job lifecycle. No network needed. GitHub Actions runs it on
+Python 3.9 + 3.12 and builds the Docker image on every push.
 
 ### Scaling notes
 
@@ -366,6 +430,12 @@ an indexed lookup in a per-city SQLite. When one box stops being enough, the
 seams are already in place: `app/store.py` is the single data-access point to
 swap for PostgreSQL/PostGIS, ingests are idempotent (cron-friendly for
 background refresh), and every response is cacheable behind any HTTP cache.
+
+**Deployment note:** run **one Uvicorn worker per instance** — rate limiting,
+metrics, the ingest job registry and hot caches are per-process by design.
+For multi-worker/multi-node setups, front instances with a load balancer
+(sticky not required; caches warm independently) or move that shared state to
+Redis — the code paths to swap are small and marked.
 
 ---
 

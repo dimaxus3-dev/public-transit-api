@@ -111,19 +111,32 @@ def check(feed: dict) -> dict:
     except Exception as e:  # noqa: BLE001
         rec["note"] = f"{type(e).__name__}: {str(e)[:120]}"
     finally:
-        shutil.rmtree(os.path.join(DATA, fid), ignore_errors=True)
+        if fid not in KEEP:
+            shutil.rmtree(os.path.join(DATA, fid), ignore_errors=True)
         shutil.rmtree(os.path.join(DATA, f".build-{fid}"), ignore_errors=True)
     return rec
 
 
+KEEP: set = set()
+
+
 def main():
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 120
-    world = json.load(open(os.path.join(ROOT, "feeds_world.json")))["feeds"]
-    random.seed(20260724)
-    sample = random.sample(world, min(n, len(world)))
+    arg = sys.argv[1] if len(sys.argv) > 1 else "120"
+    from app import registry
+    everything = [f for f in registry.load().values()
+                  if str(f.get("gtfs_static_url", "")).startswith("http")]
+    if arg == "all":
+        sample = everything          # the full registry — hours of downloads
+    else:
+        random.seed(20260724)
+        sample = random.sample(everything, min(int(arg), len(everything)))
+
+    # Never delete feeds that were already ingested before this run (the
+    # instance's live cities) — only clean up what this check itself built.
+    KEEP.update(os.listdir(DATA) if os.path.isdir(DATA) else [])
 
     results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
         for i, rec in enumerate(pool.map(check, sample), 1):
             results.append(rec)
             stage = ("routable" if rec["routable"] else
@@ -138,10 +151,12 @@ def main():
     t = len([x for x in results if x["routable"]])
     N = len(results)
 
+    scope = ("**the ENTIRE registry** — all" if arg == "all"
+             else "a random sample of")
     L = ["# 🔬 Deep check — does a feed actually WORK, not just answer HTTP?\n",
-         f"Random sample of **{N} world-catalog feeds**, each pushed through the "
-         f"full pipeline on **{date}** (feeds over {MAX_MB} MB skipped to keep "
-         "the sample bandwidth-friendly):\n",
+         f"{scope} **{N} feeds**, each pushed through the "
+         f"full pipeline on **{date}** (feeds over {MAX_MB} MB marked "
+         "`skipped` — download cap keeps the run bandwidth-sane):\n",
          "| Stage | Feeds | % of sample |",
          "|---|---:|---:|",
          f"| 📡 Reachable (HTTP 200) | {r}/{N} | {100*r//N} % |",
@@ -159,9 +174,10 @@ def main():
         m = lambda b: "✅" if b else "—"
         L.append(f"| `{x['id']}` | {(x['city'] or '')[:30]} | {m(x['reachable'])} "
                  f"| {m(x['ingested'])} | {m(x['routable'])} | {x['note'][:70]} |")
+    repro = "all" if arg == "all" else str(N)
     L += ["\n</details>\n",
-          f"\n<sub>Reproduce: `python3 scripts/deep_check.py {N}` · "
-          "fixed seed, so the sample is stable between runs.</sub>"]
+          f"\n<sub>Reproduce: `python3 scripts/deep_check.py {repro}` · "
+          "numeric samples use a fixed seed, so they are stable between runs.</sub>"]
 
     os.makedirs(DOCS, exist_ok=True)
     open(os.path.join(DOCS, "DEEP_CHECK.md"), "w").write("\n".join(L))
