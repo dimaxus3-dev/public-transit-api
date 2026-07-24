@@ -86,12 +86,12 @@ def _day_connections(feed_id: str, date_key: str):
     YYYYMMDD; cached so repeated queries on the same day are instant."""
     db = _db(feed_id)
     if not db:
-        return [], {}
+        return [], {}, {}
     day = dt.datetime.strptime(date_key, "%Y%m%d").date()
     svc = schedule._active_services(db, day)
     if not svc:
         db.close()
-        return [], {}
+        return [], {}, {}
     ph = ",".join("?" * len(svc))
     rows = db.execute(f"""
         SELECT st.trip_id, st.stop_id, st.dep_sec, st.seq,
@@ -141,8 +141,12 @@ def plan(feed_id: str, from_lat: float, from_lon: float,
          to_lat: float, to_lon: float, depart_at: dt.datetime,
          delays: dict[str, int] | None = None) -> list[dict]:
     """One earliest-arrival itinerary (with transfers) from origin to dest.
-    Returns [] when unreachable. `delays` (trip_id->sec) makes the first ride
-    leg's board/arrive times live."""
+    Returns [] when unreachable.
+
+    `delays` (trip_id -> seconds) are applied to every connection's
+    departure/arrival BEFORE the scan, so the router itself decides with live
+    times: a transfer that a delay makes impossible is rejected, and a
+    delayed-but-now-faster alternative wins on merit."""
     delays = delays or {}
     stops = _stops(feed_id)
     starts = _nearby_stops(feed_id, from_lat, from_lon, MAX_ORIGIN_WALK)
@@ -153,6 +157,14 @@ def plan(feed_id: str, from_lat: float, from_lon: float,
     connections, trip_meta, trip_stops = _day_connections(feed_id, depart_at.strftime("%Y%m%d"))
     if not connections:
         return []
+    if delays:
+        # Shift each delayed trip's connections and restore the scan order
+        # (CSA requires connections sorted by departure time).
+        connections = sorted(
+            ((dep + delays.get(tid, 0), arr + delays.get(tid, 0),
+              fs, ts, tid, dseq, aseq)
+             for dep, arr, fs, ts, tid, dseq, aseq in connections),
+            key=lambda c: c[0])
     footpaths = _footpaths(feed_id)
     dep_sec = depart_at.hour * 3600 + depart_at.minute * 60 + depart_at.second
 
@@ -304,13 +316,14 @@ def _timestamp_legs(legs, depart_at, dep_sec) -> tuple[int, int]:
     first = True
     for leg in legs:
         if leg["type"] == "ride":
-            d = leg.get("delay_sec", 0)
-            leg["depart_at"] = iso(leg["board_sec"] + d)
-            leg["arrive_at"] = iso(leg["alight_sec"] + d)
-            leg["in_minutes"] = round((leg["board_sec"] + d - dep_sec) / 60)
+            # board/alight times are already live — plan() shifts delayed
+            # trips before the scan; delay_sec on the leg is informational.
+            leg["depart_at"] = iso(leg["board_sec"])
+            leg["arrive_at"] = iso(leg["alight_sec"])
+            leg["in_minutes"] = round((leg["board_sec"] - dep_sec) / 60)
             if first:
-                start_sec = leg["board_sec"] + d
-            clock = leg["alight_sec"] + d
+                start_sec = leg["board_sec"]
+            clock = leg["alight_sec"]
         else:
             if first:
                 start_sec = clock

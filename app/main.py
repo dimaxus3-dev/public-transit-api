@@ -144,8 +144,10 @@ async def _http_exc(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def _any_exc(request: Request, exc: Exception):
-    return _problem(500, f"{type(exc).__name__}: {str(exc)[:200]}",
-                    str(request.url.path))
+    # Details go to the server log only — clients get a generic problem body.
+    import logging
+    logging.getLogger("transit").exception("unhandled error on %s", request.url.path)
+    return _problem(500, "Internal server error", str(request.url.path))
 
 
 from fastapi.exceptions import RequestValidationError  # noqa: E402
@@ -250,27 +252,53 @@ def countries():
     return dict(sorted(per.items(), key=lambda kv: -kv[1]))
 
 
+_MAX_CONCURRENT_INGESTS = 2
+
+
+def _invalidate_caches():
+    """Drop every in-RAM cache so a re-ingested feed is served fresh."""
+    for fn in (store.lines, store.stops, store.center,
+               routing._stops, routing._footpaths, routing._day_connections):
+        cache_clear = getattr(fn, "cache_clear", None)
+        if cache_clear:
+            cache_clear()
+
+
 def _do_ingest(fid: str):
     try:
         ingest_mod.ingest(_FEEDS[fid])
+        _invalidate_caches()
     finally:
         _ingesting.discard(fid)
 
 
 @app.post("/feeds/{feed_id}/ingest")
 def ingest_feed(feed_id: str, background: BackgroundTasks,
-                x_api_key: Optional[str] = Header(None)):
-    """Download + build a feed's artifacts in the background, so any of the
-    registered cities can be activated with one HTTP call (no shell needed).
-    Requires X-API-Key when ADMIN_KEY is set."""
-    if _ADMIN_KEY and x_api_key != _ADMIN_KEY:
+                x_api_key: Optional[str] = Header(None),
+                force: bool = Query(False, description="re-ingest even if present")):
+    """Download + build a feed's artifacts in the background.
+
+    **Disabled unless the server sets `ADMIN_KEY`** — ingest downloads and
+    processes multi-MB archives, so on a public deployment it must be an
+    operator-only action. With the key set, pass it as `X-API-Key`. At most
+    two ingests run concurrently; `force=true` refreshes an existing feed
+    (atomically — the old data serves until the new build swaps in)."""
+    if not _ADMIN_KEY:
+        raise HTTPException(
+            403, "ingest is disabled: set ADMIN_KEY on the server and pass "
+                 "X-API-Key (or run `python -m app.ingest <id>` locally)")
+    if x_api_key != _ADMIN_KEY:
         raise HTTPException(401, "X-API-Key required")
     if feed_id not in _FEEDS:
         raise HTTPException(404, f"unknown feed '{feed_id}' — see /feeds")
-    if feed_id in store.available_feeds():
-        return {"status": "already ingested", "feed": feed_id}
+    if feed_id in store.available_feeds() and not force:
+        return {"status": "already ingested", "feed": feed_id,
+                "hint": "pass ?force=true to refresh"}
     if feed_id in _ingesting:
         return {"status": "ingest already running", "feed": feed_id}
+    if len(_ingesting) >= _MAX_CONCURRENT_INGESTS:
+        raise HTTPException(429, f"{_MAX_CONCURRENT_INGESTS} ingests already "
+                                 "running — try again when one finishes")
     _ingesting.add(feed_id)
     background.add_task(_do_ingest, feed_id)
     return {"status": "ingest started", "feed": feed_id,
@@ -458,10 +486,24 @@ def _trip_delays(city: str) -> dict[str, int]:
         return {}
 
 
+def _feed_timezone(city: str) -> Optional[str]:
+    """Feed timezone: registry entry first, else agency.txt captured at ingest
+    (summary.json) — world-catalog feeds get theirs from the GTFS itself."""
+    tz = _FEEDS.get(city, {}).get("timezone")
+    if tz:
+        return tz
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "..", "data",
+                               city, "summary.json")) as fh:
+            return json.load(fh).get("timezone")
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _feed_now(city: str) -> dt.datetime:
     """Current wall-clock time in the feed's own timezone — GTFS times are local,
     so a server in another timezone must not use its own clock."""
-    tz = _FEEDS.get(city, {}).get("timezone")
+    tz = _feed_timezone(city)
     if tz and ZoneInfo:
         try:
             return dt.datetime.now(ZoneInfo(tz)).replace(tzinfo=None)

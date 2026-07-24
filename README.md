@@ -4,7 +4,7 @@
 **GTFS** feeds into map-ready line geometry + stops, plans door-to-door city
 journeys (walk → ride → transfer → ride → walk) with a stdlib router, and
 overlays **live** vehicle positions and delays where a city publishes
-GTFS-Realtime. No API keys. No database. Artifacts are flat files.
+GTFS-Realtime. No API keys. No external database server required — artifacts are flat files + per-city SQLite.
 
 <p>
   <img src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white" alt="python">
@@ -127,9 +127,23 @@ GitHub Action, and reproducible any time:
 python3 scripts/check_all.py       # ~2 min on 80 threads, writes docs/STATUS.md
 ```
 
-<sub>Full check 2026-07-24: 1436/1501 alive (95 %), median response 263 ms.
-Catalog feeds that need a provider API key (e.g. Bay Area 511) are excluded
-from `feeds_world.json` by design.</sub>
+**🔬 [Deep check](docs/DEEP_CHECK.md)** — HTTP 200 alone proves little, so a
+random sample of **120 world feeds** is pushed through the FULL pipeline:
+
+```
+reachable ──▶ valid GTFS + ingested end-to-end ──▶ routable today
+ 114/120                114/120 (95 %)               60/120 (50 %)
+```
+
+`ingested` proves download → zip validation → parse → schedule DB → atomic
+swap; `routable` additionally proves the CSA router plans a real ride along
+the feed's own trips **today** — the gap is almost entirely expired agency
+calendars (their data, not this pipeline). Reproduce:
+`python3 scripts/deep_check.py 120` (fixed seed, stable sample).
+
+<sub>Full availability check 2026-07-24: 1436/1501 alive (95 %), median
+response 263 ms. Catalog feeds that need a provider API key (e.g. Bay Area
+511) are excluded from `feeds_world.json` by design.</sub>
 
 ---
 
@@ -140,7 +154,7 @@ from `feeds_world.json` by design.</sub>
 | `GET /health` | Liveness + which feeds are ingested |
 | `GET /feeds` | **Browse all 1500+ registered feeds** — filter `?country=IT`, search `?q=venice` |
 | `GET /countries` | Feed count per country across the whole registry |
-| `POST /feeds/{id}/ingest` | Activate any registered city over HTTP (background download + build) |
+| `POST /feeds/{id}/ingest` | Activate any city over HTTP — **admin-only** (`ADMIN_KEY` + `X-API-Key`), atomic, max 2 concurrent |
 | `GET /cities` | Ingested cities + center coords (map picker) |
 | `GET /routes?city=` | Routes in a city (filter by `mode`) |
 | `GET /routes/{city}/{route_id}/geometry` | One route's line as GeoJSON |
@@ -331,7 +345,7 @@ curl "http://127.0.0.1:8000/journey?city=szczecin-zditm&from_lat=53.428&from_lon
 |---|---|---|
 | `RATE_LIMIT` | `120` | Requests per minute per client IP (`0` disables) |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
-| `ADMIN_KEY` | *(unset)* | When set, `POST /feeds/{id}/ingest` requires `X-API-Key` |
+| `ADMIN_KEY` | *(unset)* | **Ingest over HTTP is disabled until this is set**; then requires `X-API-Key` |
 | `PREWARM` | `1` | Pre-build every ingested city's routing graph in RAM at startup (`0` disables) |
 
 ### Tests & CI
@@ -352,6 +366,20 @@ an indexed lookup in a per-city SQLite. When one box stops being enough, the
 seams are already in place: `app/store.py` is the single data-access point to
 swap for PostgreSQL/PostGIS, ingests are idempotent (cron-friendly for
 background refresh), and every response is cacheable behind any HTTP cache.
+
+---
+
+## 📜 License & commercial use
+
+This is a **source-available** project under
+[PolyForm Noncommercial 1.0.0](LICENSE):
+
+- ✅ **Free** for personal projects, education, research, non-profits and any
+  other noncommercial use — use it, modify it, self-host it.
+- 💼 **Commercial use requires a separate license.** If you want to use this
+  in a product, service or other for-profit setting, open a GitHub issue on
+  this repository or message [@dimaxus3-dev](https://github.com/dimaxus3-dev)
+  to arrange terms.
 
 ---
 

@@ -1,0 +1,1089 @@
+{
+ "date": "2026-07-24",
+ "sample": 120,
+ "reachable": 114,
+ "ingested": 114,
+ "routable": 60,
+ "results": [
+  {
+   "id": "mdb-2099",
+   "country": "RO",
+   "city": "Sibiu",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2363",
+   "country": "US",
+   "city": "Danville",
+   "reachable": false,
+   "ingested": false,
+   "routable": false,
+   "note": "HTTP error"
+  },
+  {
+   "id": "mdb-66",
+   "country": "US",
+   "city": "San Mateo",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-3032",
+   "country": "US",
+   "city": "Humboldt County",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1858",
+   "country": "CA",
+   "city": "Belleville",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2044",
+   "country": "US",
+   "city": "Denver",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-579",
+   "country": "US",
+   "city": "Palm Springs",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2102",
+   "country": "RO",
+   "city": "Zalău",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-714",
+   "country": "CA",
+   "city": "Edmonton",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2379",
+   "country": "CA",
+   "city": "Sorel-Tracy",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1024",
+   "country": "FR",
+   "city": "Toulouse",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-70",
+   "country": "US",
+   "city": "Santa Rosa",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-674",
+   "country": "AU",
+   "city": "Cairns",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2689",
+   "country": "PL",
+   "city": "Kórnik",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2668",
+   "country": "IT",
+   "city": "Calabria",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1210",
+   "country": "US",
+   "city": "Los Angeles",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1131",
+   "country": "FI",
+   "city": "Vaasa",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-608",
+   "country": "US",
+   "city": "Winchester",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-3163",
+   "country": "MY",
+   "city": "BAS.MY Seremban B",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1834",
+   "country": "LT",
+   "city": "Šiaulių apskritis",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2853",
+   "country": "US",
+   "city": "Redding",
+   "reachable": false,
+   "ingested": false,
+   "routable": false,
+   "note": "HTTP error"
+  },
+  {
+   "id": "mdb-521",
+   "country": "US",
+   "city": "Nassau",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-718",
+   "country": "CA",
+   "city": "Cornwall",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2015",
+   "country": "LV",
+   "city": "Pasažieru Vilciens",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-890",
+   "country": "FR",
+   "city": "Provence-Alpes-Côte-d'Azur",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2328",
+   "country": "US",
+   "city": "Nevada",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-475",
+   "country": "US",
+   "city": "Kent",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1041",
+   "country": "LT",
+   "city": "Kaunas",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2859",
+   "country": "US",
+   "city": "Hiawathaland Transit",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-532",
+   "country": "US",
+   "city": "New York",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-284",
+   "country": "US",
+   "city": "Bellingham",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2929",
+   "country": "PT",
+   "city": "Lisbon",
+   "reachable": false,
+   "ingested": false,
+   "routable": false,
+   "note": "HTTP error"
+  },
+  {
+   "id": "mdb-2249",
+   "country": "US",
+   "city": "Bell",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-127",
+   "country": "US",
+   "city": "Oregon",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-854",
+   "country": "IT",
+   "city": "Azienda Trasporti Automobilistici Pubblici delle Province di Biella e Vercelli (ATAP)",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1012",
+   "country": "PL",
+   "city": "Łomża",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2072",
+   "country": "US",
+   "city": "Ann Arbor",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1943",
+   "country": "GB",
+   "city": "Bournemouth, Christchurch and Poole",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-156",
+   "country": "US",
+   "city": "Arizona",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-3183",
+   "country": "US",
+   "city": "GoTriangle",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-228",
+   "country": "US",
+   "city": "Bell Gardens",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1791",
+   "country": "BR",
+   "city": "Rio de Janeiro",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2240",
+   "country": "US",
+   "city": "Preston",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1928",
+   "country": "GB",
+   "city": "Brighton and Hove",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2441",
+   "country": "US",
+   "city": "Petersburg",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-322",
+   "country": "US",
+   "city": "Key West",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-350",
+   "country": "US",
+   "city": "Saint Augustine",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1013",
+   "country": "PL",
+   "city": "Lublin",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-726",
+   "country": "CA",
+   "city": "Durham",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2016",
+   "country": "LV",
+   "city": "Liepāja",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2639",
+   "country": "IE",
+   "city": "Dublin",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2880",
+   "country": "US",
+   "city": "Mountain View",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-315",
+   "country": "US",
+   "city": "Corpus Christi",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2277",
+   "country": "US",
+   "city": "Cary",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-526",
+   "country": "US",
+   "city": "Poughkeepsie",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-28",
+   "country": "US",
+   "city": "Los Angeles",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-882",
+   "country": "US",
+   "city": "Altavista",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-3095",
+   "country": "US",
+   "city": "Bellflower",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2032",
+   "country": "US",
+   "city": "Winona",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2616",
+   "country": "US",
+   "city": "Vail",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no multi-stop trips"
+  },
+  {
+   "id": "mdb-1826",
+   "country": "US",
+   "city": "Bettendorf",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2377",
+   "country": "ME",
+   "city": "Željeznički prevoz Crne Gore",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2381",
+   "country": "TR",
+   "city": "Isparta",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-265",
+   "country": "US",
+   "city": "Washington",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2321",
+   "country": "US",
+   "city": "Megabus",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-52",
+   "country": "US",
+   "city": "San Francisco",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-3125",
+   "country": "PL",
+   "city": "Kutno",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2461",
+   "country": "PL",
+   "city": "Kalisz",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1098",
+   "country": "FI",
+   "city": "Hämeenlinna",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-399",
+   "country": "US",
+   "city": "Sheboygan",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-290",
+   "country": "US",
+   "city": "Spokane",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2839",
+   "country": "FI",
+   "city": "Pori",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-490",
+   "country": "US",
+   "city": "Baltimore",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no multi-stop trips"
+  },
+  {
+   "id": "mdb-3192",
+   "country": "US",
+   "city": "New York",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-384",
+   "country": "US",
+   "city": "Michigan",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2280",
+   "country": "US",
+   "city": "Denver",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-171",
+   "country": "US",
+   "city": "Pocatello",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2156",
+   "country": "US",
+   "city": "Adams County",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no multi-stop trips"
+  },
+  {
+   "id": "mdb-397",
+   "country": "US",
+   "city": "Oshkosh",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-580",
+   "country": "US",
+   "city": "Washington",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2991",
+   "country": "LT",
+   "city": "LTG Link",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1111",
+   "country": "CA",
+   "city": "Moncton",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2081",
+   "country": "US",
+   "city": "Huntsville",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-15",
+   "country": "US",
+   "city": "Orange County",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2170",
+   "country": "US",
+   "city": "La Junta",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no multi-stop trips"
+  },
+  {
+   "id": "mdb-98",
+   "country": "US",
+   "city": "Riverside",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-421",
+   "country": "US",
+   "city": "Massachusetts",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1952",
+   "country": "GB",
+   "city": "Swindon",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-931",
+   "country": "US",
+   "city": "Burns",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2021",
+   "country": "IT",
+   "city": "Brindisi",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2875",
+   "country": "IE",
+   "city": "County Cork",
+   "reachable": false,
+   "ingested": false,
+   "routable": false,
+   "note": "HTTP error"
+  },
+  {
+   "id": "mdb-3176",
+   "country": "JP",
+   "city": "Tokyo",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-151",
+   "country": "US",
+   "city": "Denton",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2555",
+   "country": "CA",
+   "city": "Kelowna",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-804",
+   "country": "US",
+   "city": "Albany",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-233",
+   "country": "US",
+   "city": "Utica",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-770",
+   "country": "DE",
+   "city": "Bayern",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-317",
+   "country": "US",
+   "city": "Cripple Creek",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2036",
+   "country": "CZ",
+   "city": "Prague",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no multi-stop trips"
+  },
+  {
+   "id": "mdb-1141",
+   "country": "US",
+   "city": "Colorado",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no multi-stop trips"
+  },
+  {
+   "id": "mdb-389",
+   "country": "US",
+   "city": "Chicago",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1240",
+   "country": "US",
+   "city": "Los Alamos",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-724",
+   "country": "CA",
+   "city": "Burlington",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1121",
+   "country": "US",
+   "city": "Knoxville",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-639",
+   "country": "US",
+   "city": "Eugene",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1068",
+   "country": "IT",
+   "city": "Toremar Toscana Regionale Marittima",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1047",
+   "country": "IT",
+   "city": "Regione Autonoma della Sardegna",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no multi-stop trips"
+  },
+  {
+   "id": "mdb-246",
+   "country": "US",
+   "city": "Tillamook",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1059",
+   "country": "IT",
+   "city": "Varese",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2308",
+   "country": "US",
+   "city": "Virginia",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2143",
+   "country": "RO",
+   "city": "Brașov",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-2345",
+   "country": "AL",
+   "city": "Tirana",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-515",
+   "country": "US",
+   "city": "New York City",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-3097",
+   "country": "US",
+   "city": "California",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-1010",
+   "country": "PL",
+   "city": "Bystry",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-2430",
+   "country": "US",
+   "city": "Virginia",
+   "reachable": false,
+   "ingested": false,
+   "routable": false,
+   "note": "HTTP error"
+  },
+  {
+   "id": "mdb-3206",
+   "country": "US",
+   "city": "California",
+   "reachable": false,
+   "ingested": false,
+   "routable": false,
+   "note": "HTTP error"
+  },
+  {
+   "id": "mdb-717",
+   "country": "CA",
+   "city": "Winnipeg",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  },
+  {
+   "id": "mdb-1319",
+   "country": "IT",
+   "city": "Marche",
+   "reachable": true,
+   "ingested": true,
+   "routable": true,
+   "note": ""
+  },
+  {
+   "id": "mdb-918",
+   "country": "DE",
+   "city": "Baden-Württemberg",
+   "reachable": true,
+   "ingested": true,
+   "routable": false,
+   "note": "no service today (expired/inactive calendar?)"
+  }
+ ]
+}
