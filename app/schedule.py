@@ -1,6 +1,6 @@
 """
 Schedule queries over the per-feed SQLite built by ingest — powers /departures
-and the iOS "My Stop" board. Resolves GTFS calendar + calendar_dates to the
+and "next departures" boards. Resolves GTFS calendar + calendar_dates to the
 services running on a given date, then the next departures at a stop.
 """
 from __future__ import annotations

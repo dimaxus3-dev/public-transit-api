@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - transit-data:/srv/data
+    environment:
+      # Optional hardening — see README.
+      - RATE_LIMIT=120          # req/min per IP (0 = off)
+      - CORS_ORIGINS=*          # comma-separated origins
+      # - ADMIN_KEY=change-me   # protects POST /feeds/{id}/ingest
+
+volumes:
+  transit-data:
