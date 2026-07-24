@@ -10,7 +10,8 @@ GTFS-Realtime. No API keys. No database. Artifacts are flat files.
   <img src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white" alt="python">
   <img src="https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white" alt="fastapi">
   <img src="https://img.shields.io/badge/API%20keys-0%20required-brightgreen" alt="keyless">
-  <img src="https://img.shields.io/badge/cities-17%20live-blue" alt="cities">
+  <img src="https://img.shields.io/badge/feeds-1500%2B-blue" alt="feeds">
+  <img src="https://img.shields.io/badge/countries-71-orange" alt="countries">
   <img src="https://img.shields.io/badge/dependencies-fastapi%20%2B%20uvicorn-lightgrey" alt="deps">
 </p>
 
@@ -19,29 +20,34 @@ GTFS-Realtime. No API keys. No database. Artifacts are flat files.
 > `python3 scripts/feeds_status.py`.
 
 <p align="center">
-  <img src="docs/maps/nyc-subway.svg" width="100%" alt="New York City Subway — every line rendered from the ingested GTFS in its official MTA color">
+  <img src="docs/maps/vienna.svg" width="100%" alt="Vienna — 694 routes drawn from the ingested GTFS: U-Bahn lines in their official colors over the bus and tram grid">
 </p>
 <p align="center"><sub>
-  The NYC Subway, drawn by this repo from its own ingested data — every line in
-  its official MTA color. Generated with <code>scripts/render_map.py</code>,
-  no map tiles, no external services.
+  Vienna — 694 routes, 4 259 stops, drawn by this repo from its own ingested
+  data (U-Bahn in official line colors over the bus/tram grid). Pulled from the
+  world catalog and rendered with two commands:
+  <code>python -m app.ingest mdb-648 && python3 scripts/render_map.py mdb-648</code>.
+  No map tiles, no external services.
 </sub></p>
 
-| ![Szczecin tram & bus network](docs/maps/szczecin-zditm.svg) | ![Kielce bus network](docs/maps/kielce.svg) |
+| ![New York City Subway](docs/maps/nyc-subway.svg) | ![Szczecin tram & bus network](docs/maps/szczecin-zditm.svg) |
 |:---:|:---:|
-| **Szczecin** — trams (blue) over the bus grid, live GTFS-RT | **Kielce** — 56 bus routes, per-route feed colors |
+| **NYC Subway** — every line in its official MTA color | **Szczecin** — trams (blue) over the bus grid, live GTFS-RT |
+| ![Venice vaporetto network](docs/maps/venice.svg) | ![Kielce bus network](docs/maps/kielce.svg) |
+| **Venice** — vaporetto ferries: Canal Grande, Lido, Burano | **Kielce** — 56 bus routes, per-route feed colors |
 
 ```bash
-python3 scripts/render_map.py nyc-subway     # re-draw any ingested city
+python3 scripts/render_map.py <feed-id>      # re-draw any ingested city
 ```
 
 ---
 
-## 🚦 Feed status — what works & what doesn't
+## 🚦 Curated feed status — what works & what doesn't
 
-Every GTFS feed is the *only* external dependency here, so "checking the APIs"
-means checking the feeds. Live-verified with
-[`scripts/feeds_status.py`](scripts/feeds_status.py):
+GTFS feeds are the *only* external dependency here, so "checking the APIs"
+means checking the feeds. The 18 hand-verified feeds below are live-checked with
+[`scripts/feeds_status.py`](scripts/feeds_status.py); the 1484-feed world
+catalog is covered in the **Coverage** section below.
 ✅ = HTTP 200 · ➖ = needs a provider key · ❌ = down.
 
 | City | Country | Static GTFS | Realtime | Status |
@@ -77,13 +83,37 @@ Add a city by registering a verified `gtfs_static_url` in
 
 ---
 
-## 🌍 Coverage
+## 🌍 Coverage — 1484 feeds · 71 countries
 
-| 🇵🇱 Poland | 🇩🇪 Germany | 🇺🇸 USA |
-|---|---|---|
-| Szczecin · Warszawa · Katowice/GZM · Bydgoszcz · Toruń · Rzeszów · Lublin · Radom · Kielce · PKP rail | Berlin/Brandenburg (VBB) · DB long-distance · DB regional rail | NYC Subway · Boston · Portland · Chicago · (Bay Area\*) |
+Two registries feed the API:
 
-<sub>\* Bay Area 511 needs a free provider API key before it can be ingested.</sub>
+- **[`feeds.json`](feeds.json)** — 18 hand-verified feeds (PL / DE / US) with
+  realtime URLs, timezones and ingest notes. Curated, tested, documented above.
+- **[`feeds_world.json`](feeds_world.json)** — **1 484 keyless GTFS feeds in
+  71 countries**, imported from the official
+  [MobilityData catalog](https://mobilitydatabase.org) (the registry behind
+  Transitland/Google's transit ecosystem, ~2 400 GTFS feeds across 83
+  countries). Only feeds with a **direct, no-API-key download** are kept, and
+  downloads prefer MobilityData's stable `latest` mirror so links don't rot.
+
+| Region | Keyless feeds |
+|---|---|
+| 🇺🇸 US 816 · 🇨🇦 CA 108 | North America **924** |
+| 🇫🇷 FR 83 · 🇩🇪 DE 43 · 🇬🇧 GB 42 · 🇮🇹 IT 41 · 🇵🇱 PL 37 · 🇪🇸 ES 36 · 🇫🇮 FI 19 · 🇷🇴 RO 18 · 🇵🇹 PT 17 + 25 more | Europe **~430** |
+| 🇦🇺 AU 33 · 🇮🇳 IN 13 · 🇧🇷 BR 10 · 🇯🇵 · 🇳🇿 · 🇨🇮 · 🇲🇽 … | Rest of world **~130** |
+
+Any of them ingests by id, exactly like a curated feed:
+
+```bash
+python3 scripts/import_catalog.py            # refresh the world registry
+python3 scripts/import_catalog.py --verify 30  # + live-check a random sample
+python -m app.ingest mdb-648                 # Vienna — the map above
+python -m app.ingest mdb-1063                # Venice vaporetti
+```
+
+<sub>Sample health at import time: 28/30 random feeds reachable (93 %).
+Catalog feeds that need a provider API key (e.g. Bay Area 511) are excluded
+from `feeds_world.json` by design.</sub>
 
 ---
 

@@ -24,12 +24,11 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
-from . import realtime, routing, schedule, store
+from . import realtime, registry, routing, schedule, store
 
 app = FastAPI(title="City Transit API", version="1.0.0")
 
-_registry = json.load(open(os.path.join(os.path.dirname(__file__), "..", "feeds.json")))
-_FEEDS = {f["id"]: f for f in _registry["feeds"]}
+_FEEDS = registry.load()
 
 
 # ── meta ─────────────────────────────────────────────────────────────────────
