@@ -3,7 +3,9 @@ Schedule queries over the per-feed SQLite built by ingest — powers /departures
 and "next departures" boards. Resolves GTFS calendar + calendar_dates to the
 services running on a given date, then the next departures at a stop.
 """
+
 from __future__ import annotations
+
 import datetime as dt
 import os
 import sqlite3
@@ -20,11 +22,16 @@ def _db(feed_id: str) -> sqlite3.Connection | None:
 def _active_services(db: sqlite3.Connection, day: dt.date) -> set[str]:
     date = day.strftime("%Y%m%d")
     col = _WEEKDAY_COL[day.weekday()]
-    svc = {r[0] for r in db.execute(
-        f"SELECT service_id FROM calendar WHERE {col}=1 AND start_date<=? AND end_date>=?",
-        (date, date))}
+    svc = {
+        r[0]
+        for r in db.execute(
+            f"SELECT service_id FROM calendar WHERE {col}=1 AND start_date<=? AND end_date>=?",
+            (date, date),
+        )
+    }
     for sid, etype in db.execute(
-            "SELECT service_id, exception_type FROM calendar_dates WHERE date=?", (date,)):
+        "SELECT service_id, exception_type FROM calendar_dates WHERE date=?", (date,)
+    ):
         if etype == 1:
             svc.add(sid)
         elif etype == 2:
@@ -57,15 +64,20 @@ def search_stops(feed_id: str, query: str, limit: int = 12) -> list[dict]:
         return []
     q = f"%{query.strip().lower()}%"
     try:
-        rows = db.execute("""
+        rows = db.execute(
+            """
             SELECT stop_id, name, lat, lon FROM stops
             WHERE lower(name) LIKE ?
             ORDER BY (parent='' OR parent IS NULL) DESC, name LIMIT ?
-        """, (q, limit * 4))
+        """,
+            (q, limit * 4),
+        )
     except sqlite3.OperationalError:
         rows = db.execute(
-            "SELECT stop_id, name, lat, lon FROM stops WHERE lower(name) LIKE ? ORDER BY name LIMIT ?",
-            (q, limit))
+            "SELECT stop_id, name, lat, lon FROM stops "
+            "WHERE lower(name) LIKE ? ORDER BY name LIMIT ?",
+            (q, limit),
+        )
     seen, out = set(), []
     for r in rows:
         if r[1] in seen:
@@ -85,13 +97,16 @@ def directions(feed_id: str, stop_id: str) -> list[dict]:
         return []
     sids = _expand_stop_ids(db, stop_id)
     ph = ",".join("?" * len(sids))
-    rows = db.execute(f"""
+    rows = db.execute(
+        f"""
         SELECT t.direction, t.headsign, COUNT(*) n
         FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id
         WHERE st.stop_id IN ({ph})
         GROUP BY t.direction, t.headsign
         ORDER BY t.direction, n DESC
-    """, sids)
+    """,
+        sids,
+    )
     seen, out = set(), []
     for direction, headsign, _ in rows:
         if direction in seen:
@@ -101,9 +116,14 @@ def directions(feed_id: str, stop_id: str) -> list[dict]:
     return out
 
 
-def departures(feed_id: str, stop_id: str, at: dt.datetime | None = None,
-               limit: int = 15, direction: str | None = None,
-               delays: dict[str, int] | None = None) -> dict:
+def departures(
+    feed_id: str,
+    stop_id: str,
+    at: dt.datetime | None = None,
+    limit: int = 15,
+    direction: str | None = None,
+    delays: dict[str, int] | None = None,
+) -> dict:
     db = _db(feed_id)
     if not db:
         return {"stop_id": stop_id, "departures": [], "error": "feed not ingested"}
@@ -131,7 +151,8 @@ def departures(feed_id: str, stop_id: str, at: dt.datetime | None = None,
         # NB: bind from the `direction` PARAMETER — the row loop below must not
         # shadow it, or the second day's query gets a stray binding.
         dir_bind = [direction] if direction is not None else []
-        rows = db.execute(f"""
+        rows = db.execute(
+            f"""
             SELECT st.dep_sec, r.short_name, t.headsign, r.mode, r.color, t.direction, st.trip_id
             FROM stop_times st
             JOIN trips t ON st.trip_id = t.trip_id
@@ -139,7 +160,9 @@ def departures(feed_id: str, stop_id: str, at: dt.datetime | None = None,
             WHERE st.stop_id IN ({sid_ph}) AND t.service_id IN ({placeholders}) {where} {dir_clause}
             ORDER BY st.dep_sec
             LIMIT ?
-        """, [*sids, *svc, *bounds, *dir_bind, limit - len(out)])
+        """,
+            [*sids, *svc, *bounds, *dir_bind, limit - len(out)],
+        )
         for dep_sec, short, head, mode, color, trip_direction, trip_id in rows:
             # Live: shift the scheduled time by the trip's realtime delay when
             # today's trip is actually being tracked right now.
@@ -148,17 +171,27 @@ def departures(feed_id: str, stop_id: str, at: dt.datetime | None = None,
             eff = dep_sec + delay
             hh, mm = (eff // 3600) % 24, (eff // 60) % 60
             eta_min = ((eff - now_sec) // 60) if day_offset == 0 else None
-            out.append({
-                "route": short, "headsign": head, "mode": mode, "color": color,
-                "direction": trip_direction,
-                "time": f"{hh:02d}:{mm:02d}",
-                "in_minutes": eta_min if (eta_min is not None and eta_min >= 0) else None,
-                "day_offset": day_offset,
-                "live": live, "delay_sec": delay,
-            })
+            out.append(
+                {
+                    "route": short,
+                    "headsign": head,
+                    "mode": mode,
+                    "color": color,
+                    "direction": trip_direction,
+                    "time": f"{hh:02d}:{mm:02d}",
+                    "in_minutes": eta_min if (eta_min is not None and eta_min >= 0) else None,
+                    "day_offset": day_offset,
+                    "live": live,
+                    "delay_sec": delay,
+                }
+            )
 
-    return {"stop_id": stop_id, "stop_name": stop_name(feed_id, stop_id),
-            "generated_at": at.isoformat(timespec="seconds"), "departures": out}
+    return {
+        "stop_id": stop_id,
+        "stop_name": stop_name(feed_id, stop_id),
+        "generated_at": at.isoformat(timespec="seconds"),
+        "departures": out,
+    }
 
 
 def route_stops(feed_id: str, route_id: str, direction: str = "0") -> list[dict]:
@@ -167,17 +200,23 @@ def route_stops(feed_id: str, route_id: str, direction: str = "0") -> list[dict]
     db = _db(feed_id)
     if not db:
         return []
-    trip = db.execute("""
+    trip = db.execute(
+        """
         SELECT st.trip_id, COUNT(*) n FROM stop_times st
         JOIN trips t ON t.trip_id = st.trip_id
         WHERE t.route_id = ? AND t.direction = ?
         GROUP BY st.trip_id ORDER BY n DESC LIMIT 1
-    """, (route_id, direction)).fetchone()
+    """,
+        (route_id, direction),
+    ).fetchone()
     if not trip:
         return []
-    rows = db.execute("""
+    rows = db.execute(
+        """
         SELECT s.stop_id, s.name, s.lat, s.lon, st.seq
         FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
         WHERE st.trip_id = ? ORDER BY st.seq
-    """, (trip[0],))
+    """,
+        (trip[0],),
+    )
     return [{"id": r[0], "name": r[1], "lat": r[2], "lon": r[3], "seq": r[4]} for r in rows]

@@ -9,6 +9,7 @@ For every single city: HTTP code, response latency and feed size (HEAD, or a
 downloaded). ~1500 feeds check in a couple of minutes on 80 threads.
 stdlib only. A weekly GitHub Action re-runs this so the page stays honest.
 """
+
 from __future__ import annotations
 
 import concurrent.futures
@@ -36,8 +37,10 @@ def probe(url: str, timeout: int = 12) -> tuple[int, int, str]:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 ms = int((time.time() - t0) * 1000)
-                size = r.headers.get("Content-Length") or \
-                    r.headers.get("Content-Range", "").split("/")[-1]
+                size = (
+                    r.headers.get("Content-Length")
+                    or r.headers.get("Content-Range", "").split("/")[-1]
+                )
                 mb = f"{int(size) / 1_000_000:.1f} MB" if size and size.isdigit() else "—"
                 return (200 if r.status in (200, 206) else r.status), ms, mb
         except urllib.error.HTTPError as e:
@@ -57,14 +60,22 @@ def flag(cc: str) -> str:
 
 
 def check_all() -> list[dict]:
-    feeds = [f for f in registry.load().values() if str(f.get("gtfs_static_url", "")).startswith("http")]
+    feeds = [
+        f for f in registry.load().values() if str(f.get("gtfs_static_url", "")).startswith("http")
+    ]
 
     def one(f):
         code, ms, size = probe(f["gtfs_static_url"])
-        return {"id": f["id"], "country": (f.get("country") or "?").strip().upper() or "?",
-                "city": f.get("city_region") or f["id"],
-                "agency": f.get("agency_provider") or "",
-                "http": code, "ms": ms, "size": size, "ok": code == 200}
+        return {
+            "id": f["id"],
+            "country": (f.get("country") or "?").strip().upper() or "?",
+            "city": f.get("city_region") or f["id"],
+            "agency": f.get("agency_provider") or "",
+            "http": code,
+            "ms": ms,
+            "size": size,
+            "ok": code == 200,
+        }
 
     out = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=80) as pool:
@@ -89,13 +100,17 @@ def write_status(rows: list[dict]) -> None:
 
     L: list[str] = []
     L.append("# 🌍 Live status — every city, every feed\n")
-    L.append(f"**{len(rows)} feeds · {len(by_country)} countries · "
-             f"{len(alive)} alive ({pct} %) · median response {med} ms** — "
-             f"checked {date}\n")
-    L.append("> Every row is a real measurement (HTTP code · latency · feed size), "
-             "taken by [`scripts/check_all.py`](../scripts/check_all.py). "
-             "A weekly GitHub Action refreshes this page automatically. "
-             "✅ HTTP 200 · ❌ down / error\n")
+    L.append(
+        f"**{len(rows)} feeds · {len(by_country)} countries · "
+        f"{len(alive)} alive ({pct} %) · median response {med} ms** — "
+        f"checked {date}\n"
+    )
+    L.append(
+        "> Every row is a real measurement (HTTP code · latency · feed size), "
+        "taken by [`scripts/check_all.py`](../scripts/check_all.py). "
+        "A weekly GitHub Action refreshes this page automatically. "
+        "✅ HTTP 200 · ❌ down / error\n"
+    )
 
     L.append("\n## Summary by country\n")
     L.append("| Country | Feeds | ✅ Alive | ❌ Down | Median latency |")
@@ -104,15 +119,15 @@ def write_status(rows: list[dict]) -> None:
     for cc, rs in order:
         a = [r for r in rs if r["ok"]]
         m = int(statistics.median(r["ms"] for r in a)) if a else 0
-        L.append(f"| {flag(cc)} **{cc}** | {len(rs)} | {len(a)} | {len(rs) - len(a)} | "
-                 f"{m} ms |")
+        L.append(f"| {flag(cc)} **{cc}** | {len(rs)} | {len(a)} | {len(rs) - len(a)} | {m} ms |")
 
     L.append("\n## Every city\n")
     L.append("<sub>Click a country to expand its full city table.</sub>\n")
     for cc, rs in order:
         a = sum(r["ok"] for r in rs)
-        L.append(f"<details><summary>{flag(cc)} <b>{cc}</b> — {len(rs)} feeds, "
-                 f"{a} alive</summary>\n")
+        L.append(
+            f"<details><summary>{flag(cc)} <b>{cc}</b> — {len(rs)} feeds, {a} alive</summary>\n"
+        )
         L.append("| City / region | Feed | HTTP | Latency | Size | |")
         L.append("|---|---|:---:|---:|---:|:---:|")
         for r in sorted(rs, key=lambda x: (x["city"] or "").lower()):
@@ -123,18 +138,31 @@ def write_status(rows: list[dict]) -> None:
         L.append("\n</details>\n")
 
     L.append("\n---\n")
-    L.append(f"<sub>Generated {date} · `python3 scripts/check_all.py` reproduces "
-             "this page · feeds that need a provider API key are excluded from "
-             "the registry by design.</sub>\n")
+    L.append(
+        f"<sub>Generated {date} · `python3 scripts/check_all.py` reproduces "
+        "this page · feeds that need a provider API key are excluded from "
+        "the registry by design.</sub>\n"
+    )
 
     with open(os.path.join(DOCS, "STATUS.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(L))
     with open(os.path.join(DOCS, "status.json"), "w", encoding="utf-8") as fh:
-        json.dump({"checked_at": date, "total": len(rows), "alive": len(alive),
-                   "median_ms": med, "feeds": sorted(rows, key=lambda r: r["id"])},
-                  fh, ensure_ascii=False, indent=1)
-    print(f"\n{len(alive)}/{len(rows)} alive ({pct} %) · median {med} ms · "
-          f"docs/STATUS.md + docs/status.json written")
+        json.dump(
+            {
+                "checked_at": date,
+                "total": len(rows),
+                "alive": len(alive),
+                "median_ms": med,
+                "feeds": sorted(rows, key=lambda r: r["id"]),
+            },
+            fh,
+            ensure_ascii=False,
+            indent=1,
+        )
+    print(
+        f"\n{len(alive)}/{len(rows)} alive ({pct} %) · median {med} ms · "
+        f"docs/STATUS.md + docs/status.json written"
+    )
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ Optional hardening (all via environment variables, all off by default):
     RATE_LIMIT     requests per minute per client IP (default 120; 0 = off)
     ADMIN_KEY      when set, POST /feeds/{id}/ingest requires X-API-Key
 """
+
 import datetime as dt
 import json
 import os
@@ -33,15 +34,15 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
+from contextlib import asynccontextmanager
+
 from . import ingest as ingest_mod
 from . import realtime, registry, routing, schedule, store
-
-from contextlib import asynccontextmanager
 
 
 @asynccontextmanager
 async def _lifespan(_app):
-    _start_prewarm()      # defined below; lifts ingested cities into RAM
+    _start_prewarm()  # defined below; lifts ingested cities into RAM
     yield
 
 
@@ -59,19 +60,25 @@ app = FastAPI(
         "- Prometheus metrics at `/metrics`\n"
         "- Live vehicles as **SSE** at `/vehicles/stream`"
     ),
-    license_info={"name": "PolyForm Noncommercial 1.0.0",
-                  "url": "https://polyformproject.org/licenses/noncommercial/1.0.0/"},
+    license_info={
+        "name": "PolyForm Noncommercial 1.0.0",
+        "url": "https://polyformproject.org/licenses/noncommercial/1.0.0/",
+    },
 )
 
 _FEEDS = registry.load()
 
 # ── CORS (env-configurable; "*" by default so the API is easy to try) ────────
 _origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",")]
-app.add_middleware(CORSMiddleware, allow_origins=_origins,
-                   allow_methods=["GET", "POST"], allow_headers=["X-API-Key"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["X-API-Key"],
+)
 
 # ── Rate limiting (sliding window per client IP, in-memory) ──────────────────
-_RATE = int(os.environ.get("RATE_LIMIT", "120"))          # req/min; 0 disables
+_RATE = int(os.environ.get("RATE_LIMIT", "120"))  # req/min; 0 disables
 _hits: dict = defaultdict(deque)
 _hits_lock = threading.Lock()
 
@@ -87,8 +94,9 @@ async def _rate_limit(request: Request, call_next):
                 q.popleft()
             if len(q) >= _RATE:
                 # Same RFC 7807 problem+json contract as every other error.
-                return _problem(429, f"rate limit exceeded ({_RATE} requests/min)",
-                                str(request.url.path))
+                return _problem(
+                    429, f"rate limit exceeded ({_RATE} requests/min)", str(request.url.path)
+                )
             q.append(now)
     return await call_next(request)
 
@@ -103,6 +111,7 @@ _ingesting: set = set()
 # routing graph + geometry, so the first user is as fast as the thousandth.
 # Disable with PREWARM=0 (e.g. in tests or memory-tight environments).
 
+
 def _prewarm_feeds() -> int:
     warmed = 0
     today = dt.datetime.now().strftime("%Y%m%d")
@@ -114,7 +123,7 @@ def _prewarm_feeds() -> int:
             routing._footpaths(fid)
             routing._day_connections(fid, today)
             warmed += 1
-        except Exception:  # noqa: BLE001 — a bad feed must not break startup
+        except Exception:  # noqa: BLE001, S110 — a bad feed must not break startup
             pass
     return warmed
 
@@ -123,20 +132,29 @@ def _start_prewarm():
     if os.environ.get("PREWARM", "1") != "0":
         threading.Thread(target=_prewarm_feeds, daemon=True).start()
 
+
 # ── RFC 7807 problem+json error responses ────────────────────────────────────
-_STATUS_TITLES = {400: "Bad Request", 401: "Unauthorized", 404: "Not Found",
-                  422: "Validation Error", 429: "Too Many Requests",
-                  500: "Internal Server Error", 502: "Bad Gateway"}
+_STATUS_TITLES = {
+    400: "Bad Request",
+    401: "Unauthorized",
+    404: "Not Found",
+    422: "Validation Error",
+    429: "Too Many Requests",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+}
 
 
 def _problem(status: int, detail, instance: str = ""):
-    body = {"type": "about:blank",
-            "title": _STATUS_TITLES.get(status, "Error"),
-            "status": status, "detail": detail}
+    body = {
+        "type": "about:blank",
+        "title": _STATUS_TITLES.get(status, "Error"),
+        "status": status,
+        "detail": detail,
+    }
     if instance:
         body["instance"] = instance
-    return JSONResponse(body, status_code=status,
-                        media_type="application/problem+json")
+    return JSONResponse(body, status_code=status, media_type="application/problem+json")
 
 
 @app.exception_handler(HTTPException)
@@ -148,6 +166,7 @@ async def _http_exc(request: Request, exc: HTTPException):
 async def _any_exc(request: Request, exc: Exception):
     # Details go to the server log only — clients get a generic problem body.
     import logging
+
     logging.getLogger("transit").exception("unhandled error on %s", request.url.path)
     return _problem(500, "Internal server error", str(request.url.path))
 
@@ -162,8 +181,8 @@ async def _validation_exc(request: Request, exc: RequestValidationError):
 
 # ── Prometheus-style metrics (no dependency; text exposition format) ─────────
 _metrics_lock = threading.Lock()
-_req_count: dict = defaultdict(int)          # (path_template, status) -> n
-_req_ms_sum: dict = defaultdict(float)       # path_template -> total ms
+_req_count: dict = defaultdict(int)  # (path_template, status) -> n
+_req_ms_sum: dict = defaultdict(float)  # path_template -> total ms
 _started_at = time.time()
 
 
@@ -183,8 +202,11 @@ async def _measure(request: Request, call_next):
 def metrics():
     """Prometheus text exposition — point Prometheus/Grafana straight here."""
     from fastapi.responses import PlainTextResponse
-    L = ["# HELP transit_requests_total HTTP requests by path and status",
-         "# TYPE transit_requests_total counter"]
+
+    L = [
+        "# HELP transit_requests_total HTTP requests by path and status",
+        "# TYPE transit_requests_total counter",
+    ]
     with _metrics_lock:
         for (path, status), n in sorted(_req_count.items()):
             L.append(f'transit_requests_total{{path="{path}",status="{status}"}} {n}')
@@ -203,10 +225,10 @@ def metrics():
 
 # ── meta ─────────────────────────────────────────────────────────────────────
 
+
 @app.get("/health")
 def health():
-    return {"ok": True, "ingested_feeds": store.available_feeds(),
-            "registered_feeds": len(_FEEDS)}
+    return {"ok": True, "ingested_feeds": store.available_feeds(), "registered_feeds": len(_FEEDS)}
 
 
 @app.get("/cities")
@@ -216,16 +238,26 @@ def cities():
     for fid in store.available_feeds():
         f = _FEEDS.get(fid, {})
         c = store.center(fid)
-        out.append({"feed": fid, "city": f.get("city_region", fid),
-                    "country": f.get("country"), "agency": f.get("agency_provider"),
-                    "lat": c[0] if c else None, "lon": c[1] if c else None})
+        out.append(
+            {
+                "feed": fid,
+                "city": f.get("city_region", fid),
+                "country": f.get("country"),
+                "agency": f.get("agency_provider"),
+                "lat": c[0] if c else None,
+                "lon": c[1] if c else None,
+            }
+        )
     return out
 
 
 @app.get("/feeds")
-def feeds(country: Optional[str] = Query(None, description="2-letter code, e.g. IT"),
-          q: Optional[str] = Query(None, description="search city/agency name"),
-          limit: int = Query(100, le=2000), offset: int = 0):
+def feeds(
+    country: Optional[str] = Query(None, description="2-letter code, e.g. IT"),
+    q: Optional[str] = Query(None, description="search city/agency name"),
+    limit: int = Query(100, le=2000),
+    offset: int = 0,
+):
     """Browse EVERY registered feed (curated + world catalog) — every city and
     region the API knows about, ingested or not. Filter by country or name."""
     ingested = set(store.available_feeds())
@@ -234,14 +266,22 @@ def feeds(country: Optional[str] = Query(None, description="2-letter code, e.g. 
     for fid, f in _FEEDS.items():
         if country and (f.get("country") or "").upper() != country.upper():
             continue
-        if ql and ql not in f"{f.get('city_region','')} {f.get('agency_provider','')} {f.get('name','')}".lower():
+        haystack = f"{f.get('city_region', '')} {f.get('agency_provider', '')} {f.get('name', '')}"
+        if ql and ql not in haystack.lower():
             continue
-        out.append({"feed": fid, "city": f.get("city_region"),
-                    "country": f.get("country"), "agency": f.get("agency_provider"),
-                    "lat": f.get("lat"), "lon": f.get("lon"),
-                    "ingested": fid in ingested})
+        out.append(
+            {
+                "feed": fid,
+                "city": f.get("city_region"),
+                "country": f.get("country"),
+                "agency": f.get("agency_provider"),
+                "lat": f.get("lat"),
+                "lon": f.get("lon"),
+                "ingested": fid in ingested,
+            }
+        )
     out.sort(key=lambda x: ((x["country"] or "‾"), (x["city"] or "‾")))
-    return {"total": len(out), "feeds": out[offset:offset + limit]}
+    return {"total": len(out), "feeds": out[offset : offset + limit]}
 
 
 @app.get("/countries")
@@ -262,16 +302,21 @@ _ingest_jobs: dict = {}
 
 def _invalidate_caches():
     """Drop every in-RAM cache so a re-ingested feed is served fresh."""
-    for fn in (store.lines, store.stops, store.center,
-               routing._stops, routing._footpaths, routing._day_connections):
+    for fn in (
+        store.lines,
+        store.stops,
+        store.center,
+        routing._stops,
+        routing._footpaths,
+        routing._day_connections,
+    ):
         cache_clear = getattr(fn, "cache_clear", None)
         if cache_clear:
             cache_clear()
 
 
 def _do_ingest(fid: str):
-    _ingest_jobs[fid].update(status="running",
-                             started_at=dt.datetime.utcnow().isoformat() + "Z")
+    _ingest_jobs[fid].update(status="running", started_at=dt.datetime.utcnow().isoformat() + "Z")
     try:
         summary = ingest_mod.ingest(_FEEDS[fid])
         _invalidate_caches()
@@ -279,9 +324,9 @@ def _do_ingest(fid: str):
     except Exception as e:  # noqa: BLE001
         # Safe, bounded description — full traceback goes to the server log.
         import logging
+
         logging.getLogger("transit").exception("ingest failed for %s", fid)
-        _ingest_jobs[fid].update(status="failed",
-                                 error=f"{type(e).__name__}: {str(e)[:180]}")
+        _ingest_jobs[fid].update(status="failed", error=f"{type(e).__name__}: {str(e)[:180]}")
     finally:
         _ingest_jobs[fid]["finished_at"] = dt.datetime.utcnow().isoformat() + "Z"
         with _ingest_lock:
@@ -289,9 +334,12 @@ def _do_ingest(fid: str):
 
 
 @app.post("/feeds/{feed_id}/ingest")
-def ingest_feed(feed_id: str, background: BackgroundTasks,
-                x_api_key: Optional[str] = Header(None),
-                force: bool = Query(False, description="re-ingest even if present")):
+def ingest_feed(
+    feed_id: str,
+    background: BackgroundTasks,
+    x_api_key: Optional[str] = Header(None),
+    force: bool = Query(False, description="re-ingest even if present"),
+):
     """Download + build a feed's artifacts in the background.
 
     **Disabled unless the server sets `ADMIN_KEY`** — ingest downloads and
@@ -301,29 +349,41 @@ def ingest_feed(feed_id: str, background: BackgroundTasks,
     (atomically — the old data serves until the new build swaps in)."""
     if not _ADMIN_KEY:
         raise HTTPException(
-            403, "ingest is disabled: set ADMIN_KEY on the server and pass "
-                 "X-API-Key (or run `python -m app.ingest <id>` locally)")
+            403,
+            "ingest is disabled: set ADMIN_KEY on the server and pass "
+            "X-API-Key (or run `python -m app.ingest <id>` locally)",
+        )
     if x_api_key != _ADMIN_KEY:
         raise HTTPException(401, "X-API-Key required")
     if feed_id not in _FEEDS:
         raise HTTPException(404, f"unknown feed '{feed_id}' — see /feeds")
     if feed_id in store.available_feeds() and not force:
-        return {"status": "already ingested", "feed": feed_id,
-                "hint": "pass ?force=true to refresh"}
+        return {
+            "status": "already ingested",
+            "feed": feed_id,
+            "hint": "pass ?force=true to refresh",
+        }
     # Check-and-reserve atomically — two racing requests can't both pass.
     with _ingest_lock:
         if feed_id in _ingesting:
-            return {"status": "ingest already running", "feed": feed_id,
-                    "poll": f"/ingests/{feed_id}"}
+            return {
+                "status": "ingest already running",
+                "feed": feed_id,
+                "poll": f"/ingests/{feed_id}",
+            }
         if len(_ingesting) >= _MAX_CONCURRENT_INGESTS:
-            raise HTTPException(429, f"{_MAX_CONCURRENT_INGESTS} ingests already "
-                                     "running — try again when one finishes")
+            raise HTTPException(
+                429,
+                f"{_MAX_CONCURRENT_INGESTS} ingests already running — try again when one finishes",
+            )
         _ingesting.add(feed_id)
-    _ingest_jobs[feed_id] = {"feed": feed_id, "status": "queued",
-                             "queued_at": dt.datetime.utcnow().isoformat() + "Z"}
+    _ingest_jobs[feed_id] = {
+        "feed": feed_id,
+        "status": "queued",
+        "queued_at": dt.datetime.utcnow().isoformat() + "Z",
+    }
     background.add_task(_do_ingest, feed_id)
-    return {"status": "ingest started", "feed": feed_id,
-            "poll": f"/ingests/{feed_id}"}
+    return {"status": "ingest started", "feed": feed_id, "poll": f"/ingests/{feed_id}"}
 
 
 @app.get("/ingests/{feed_id}")
@@ -336,8 +396,7 @@ def ingest_status(feed_id: str):
     if job:
         return job
     if feed_id in store.available_feeds():
-        return {"feed": feed_id, "status": "completed",
-                "note": "ingested outside this process"}
+        return {"feed": feed_id, "status": "completed", "note": "ingested outside this process"}
     if feed_id not in _FEEDS:
         raise HTTPException(404, f"unknown feed '{feed_id}' — see /feeds")
     return {"feed": feed_id, "status": "not started"}
@@ -345,9 +404,11 @@ def ingest_status(feed_id: str):
 
 # ── routes & map geometry ────────────────────────────────────────────────────
 
+
 @app.get("/routes")
-def routes(city: str = Query(..., description="feed id, e.g. szczecin-zditm"),
-           mode: Optional[str] = None):
+def routes(
+    city: str = Query(..., description="feed id, e.g. szczecin-zditm"), mode: Optional[str] = None
+):
     _require(city)
     rs = store.routes(city)
     return [r for r in rs if mode is None or r["mode"] == mode]
@@ -392,6 +453,7 @@ def lines_geojson(city: str):
 
 # ── stops ────────────────────────────────────────────────────────────────────
 
+
 @app.get("/stops")
 def stops_all(city: str = Query(...)):
     _require(city)
@@ -399,10 +461,13 @@ def stops_all(city: str = Query(...)):
 
 
 @app.get("/stops/nearby")
-def stops_nearby(city: str = Query(...),
-                 lat: float = Query(...), lng: float = Query(...),
-                 radius: float = Query(500, description="metres"),
-                 limit: int = 50):
+def stops_nearby(
+    city: str = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+    radius: float = Query(500, description="metres"),
+    limit: int = 50,
+):
     _require(city)
     return store.stops_nearby(city, lat, lng, radius, limit)
 
@@ -421,23 +486,28 @@ def stop_directions(city: str, stop_id: str):
 
 
 @app.get("/stops/{city}/{stop_id}/departures")
-def stop_departures(city: str, stop_id: str, limit: int = 15,
-                    direction: Optional[str] = None):
+def stop_departures(city: str, stop_id: str, limit: int = 15, direction: Optional[str] = None):
     """Next departures at a stop — the "My Stop" board. Live where the realtime
     feed is tracking today's trip. Optional `direction` (0/1)."""
     _require(city)
     delays = _trip_delays(city)
-    return schedule.departures(city, stop_id, at=_feed_now(city),
-                               limit=limit, direction=direction, delays=delays)
+    return schedule.departures(
+        city, stop_id, at=_feed_now(city), limit=limit, direction=direction, delays=delays
+    )
 
 
 # ── routing & realtime ───────────────────────────────────────────────────────
 
+
 @app.get("/journey")
-def journey(city: str = Query(..., description="feed id, e.g. szczecin-zditm"),
-            from_lat: float = Query(...), from_lon: float = Query(...),
-            to_lat: float = Query(...), to_lon: float = Query(...),
-            time: Optional[str] = Query(None, description="ISO departure time; default now")):
+def journey(
+    city: str = Query(..., description="feed id, e.g. szczecin-zditm"),
+    from_lat: float = Query(...),
+    from_lon: float = Query(...),
+    to_lat: float = Query(...),
+    to_lon: float = Query(...),
+    time: Optional[str] = Query(None, description="ISO departure time; default now"),
+):
     """Plan an A→B city transit journey (walk + rides, any transfers) with live
     delays on the boarding leg where the realtime feed has them."""
     _require(city)
@@ -446,10 +516,13 @@ def journey(city: str = Query(..., description="feed id, e.g. szczecin-zditm"),
         try:
             when = dt.datetime.fromisoformat(time)
         except ValueError:
-            raise HTTPException(400, "bad `time` (want ISO 8601)")
-    return {"city": city,
-            "itineraries": routing.plan(city, from_lat, from_lon, to_lat, to_lon,
-                                        when, _trip_delays(city))}
+            raise HTTPException(400, "bad `time` (want ISO 8601)") from None
+    return {
+        "city": city,
+        "itineraries": routing.plan(
+            city, from_lat, from_lon, to_lat, to_lon, when, _trip_delays(city)
+        ),
+    }
 
 
 @app.get("/vehicles/live")
@@ -464,12 +537,13 @@ def vehicles_live(city: str = Query(..., description="feed id, e.g. szczecin-zdi
     try:
         return {"city": city, "vehicles": realtime.vehicles_live(city, rt_url)}
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(502, f"realtime feed unavailable: {e}")
+        raise HTTPException(502, f"realtime feed unavailable: {e}") from None
 
 
 @app.get("/vehicles/stream")
-async def vehicles_stream(city: str = Query(..., description="feed id"),
-                          interval: float = Query(5.0, ge=2.0, le=30.0)):
+async def vehicles_stream(
+    city: str = Query(..., description="feed id"), interval: float = Query(5.0, ge=2.0, le=30.0)
+):
     """**Server-Sent Events** stream of live vehicle positions — subscribe once
     and receive a fresh frame every `interval` seconds; no polling code needed:
 
@@ -489,20 +563,25 @@ async def vehicles_stream(city: str = Query(..., description="feed id"),
         while True:
             try:
                 vehicles = await asyncio.to_thread(realtime.vehicles_live, city, rt_url)
-                payload = json.dumps({"city": city, "count": len(vehicles),
-                                      "vehicles": vehicles}, ensure_ascii=False)
+                payload = json.dumps(
+                    {"city": city, "count": len(vehicles), "vehicles": vehicles}, ensure_ascii=False
+                )
                 yield f"data: {payload}\n\n"
             except Exception as e:  # noqa: BLE001 — keep the stream alive
                 yield f"event: error\ndata: {json.dumps(str(e)[:200])}\n\n"
             await asyncio.sleep(interval)
 
     from fastapi.responses import StreamingResponse
-    return StreamingResponse(gen(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache",
-                                      "X-Accel-Buffering": "no"})
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 def _require(city: str):
     if city not in store.available_feeds():
@@ -531,8 +610,9 @@ def _feed_timezone(city: str) -> Optional[str]:
     if tz:
         return tz
     try:
-        with open(os.path.join(os.path.dirname(__file__), "..", "data",
-                               city, "summary.json")) as fh:
+        with open(
+            os.path.join(os.path.dirname(__file__), "..", "data", city, "summary.json")
+        ) as fh:
             return json.load(fh).get("timezone")
     except Exception:  # noqa: BLE001
         return None
@@ -545,6 +625,6 @@ def _feed_now(city: str) -> dt.datetime:
     if tz and ZoneInfo:
         try:
             return dt.datetime.now(ZoneInfo(tz)).replace(tzinfo=None)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110 — bad tz name -> server clock
             pass
     return dt.datetime.now()

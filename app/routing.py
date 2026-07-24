@@ -11,7 +11,9 @@ single linear scan computes the earliest arrival at every stop. It's stdlib-only
 and fast — an active Szczecin day is ~150k connections, scanned in well under a
 second. Live delays are layered on by realtime.trip_delays().
 """
+
 from __future__ import annotations
+
 import datetime as dt
 import functools
 import math
@@ -21,11 +23,11 @@ import sqlite3
 from . import schedule
 
 DATA_DIR = schedule.DATA_DIR
-WALK_SPEED = 1.3            # m/s (~4.7 km/h)
-MAX_ORIGIN_WALK = 900.0    # m — how far we'll walk to a first/last stop
-TRANSFER_RADIUS = 250.0    # m — stops within this are walk-transferable
-MIN_TRANSFER = 45          # s — floor on any walking transfer
-INF = 10 ** 9
+WALK_SPEED = 1.3  # m/s (~4.7 km/h)
+MAX_ORIGIN_WALK = 900.0  # m — how far we'll walk to a first/last stop
+TRANSFER_RADIUS = 250.0  # m — stops within this are walk-transferable
+MIN_TRANSFER = 45  # s — floor on any walking transfer
+INF = 10**9
 
 
 def _db(feed_id: str) -> sqlite3.Connection | None:
@@ -46,8 +48,10 @@ def _stops(feed_id: str) -> dict[str, tuple[str, float, float]]:
     db = _db(feed_id)
     if not db:
         return {}
-    out = {sid: (name, lat, lon)
-           for sid, name, lat, lon in db.execute("SELECT stop_id, name, lat, lon FROM stops")}
+    out = {
+        sid: (name, lat, lon)
+        for sid, name, lat, lon in db.execute("SELECT stop_id, name, lat, lon FROM stops")
+    }
     db.close()
     return out
 
@@ -57,7 +61,7 @@ def _footpaths(feed_id: str) -> dict[str, list[tuple[str, int]]]:
     """Walkable transfers between nearby stops (grid-bucketed so we don't do a
     full O(n^2) sweep). Built once per feed."""
     stops = _stops(feed_id)
-    cell = TRANSFER_RADIUS / 111_000.0       # ~degrees for the radius
+    cell = TRANSFER_RADIUS / 111_000.0  # ~degrees for the radius
     grid: dict[tuple[int, int], list[str]] = {}
     for sid, (_, lat, lon) in stops.items():
         grid.setdefault((int(lat / cell), int(lon / cell)), []).append(sid)
@@ -93,7 +97,8 @@ def _day_connections(feed_id: str, date_key: str):
         db.close()
         return [], {}, {}
     ph = ",".join("?" * len(svc))
-    rows = db.execute(f"""
+    rows = db.execute(
+        f"""
         SELECT st.trip_id, st.stop_id, st.dep_sec, st.seq,
                r.short_name, r.mode, r.color, t.headsign
         FROM stop_times st
@@ -101,26 +106,34 @@ def _day_connections(feed_id: str, date_key: str):
         JOIN routes r ON t.route_id = r.route_id
         WHERE t.service_id IN ({ph})
         ORDER BY st.trip_id, st.seq
-    """, list(svc))
+    """,
+        list(svc),
+    )
     trip_meta: dict[str, dict] = {}
     per_trip: dict[str, list] = {}
     for tid, sid, dep, seq, short, mode, color, head in rows:
         per_trip.setdefault(tid, []).append((seq, sid, dep))
         if tid not in trip_meta:
-            trip_meta[tid] = {"route": short, "mode": mode or "bus",
-                              "color": color, "headsign": head or ""}
+            trip_meta[tid] = {
+                "route": short,
+                "mode": mode or "bus",
+                "color": color,
+                "headsign": head or "",
+            }
     connections = []
-    trip_stops: dict[str, list] = {}          # trip_id -> ordered [(seq, stop_id)]
+    trip_stops: dict[str, list] = {}  # trip_id -> ordered [(seq, stop_id)]
     for tid, seq_rows in per_trip.items():
         seq_rows.sort()
         trip_stops[tid] = [(seq, sid) for seq, sid, _ in seq_rows]
         for i in range(len(seq_rows) - 1):
             _, s_stop, s_dep = seq_rows[i]
             _, e_stop, e_dep = seq_rows[i + 1]
-            if e_dep < s_dep:                 # guard against bad data
+            if e_dep < s_dep:  # guard against bad data
                 continue
             # store the alight seq so a ride leg can slice its own stop range
-            connections.append((s_dep, e_dep, s_stop, e_stop, tid, seq_rows[i][0], seq_rows[i + 1][0]))
+            connections.append(
+                (s_dep, e_dep, s_stop, e_stop, tid, seq_rows[i][0], seq_rows[i + 1][0])
+            )
     connections.sort(key=lambda c: c[0])
     db.close()
     return connections, trip_meta, trip_stops
@@ -137,9 +150,15 @@ def _nearby_stops(feed_id: str, lat: float, lon: float, max_m: float) -> list[tu
     return out[:60]
 
 
-def plan(feed_id: str, from_lat: float, from_lon: float,
-         to_lat: float, to_lon: float, depart_at: dt.datetime,
-         delays: dict[str, int] | None = None) -> list[dict]:
+def plan(
+    feed_id: str,
+    from_lat: float,
+    from_lon: float,
+    to_lat: float,
+    to_lon: float,
+    depart_at: dt.datetime,
+    delays: dict[str, int] | None = None,
+) -> list[dict]:
     """One earliest-arrival itinerary (with transfers) from origin to dest.
     Returns [] when unreachable.
 
@@ -161,26 +180,28 @@ def plan(feed_id: str, from_lat: float, from_lon: float,
         # Shift each delayed trip's connections and restore the scan order
         # (CSA requires connections sorted by departure time).
         connections = sorted(
-            ((dep + delays.get(tid, 0), arr + delays.get(tid, 0),
-              fs, ts, tid, dseq, aseq)
-             for dep, arr, fs, ts, tid, dseq, aseq in connections),
-            key=lambda c: c[0])
+            (
+                (dep + delays.get(tid, 0), arr + delays.get(tid, 0), fs, ts, tid, dseq, aseq)
+                for dep, arr, fs, ts, tid, dseq, aseq in connections
+            ),
+            key=lambda c: c[0],
+        )
     footpaths = _footpaths(feed_id)
     dep_sec = depart_at.hour * 3600 + depart_at.minute * 60 + depart_at.second
 
     arrival: dict[str, int] = {}
-    pointer: dict[str, tuple] = {}        # stop -> ('ride', conn) | ('walk', from_stop, wsec)
-    enter: dict[str, int] = {}            # trip_id -> boarding connection index
+    pointer: dict[str, tuple] = {}  # stop -> ('ride', conn) | ('walk', from_stop, wsec)
+    enter: dict[str, int] = {}  # trip_id -> boarding connection index
 
     for sid, wsec in starts:
         arrival[sid] = dep_sec + wsec
         pointer[sid] = ("origin", wsec)
 
     best_end_arrival = INF
-    for c_idx, (c_dep, c_arr, c_from, c_to, c_trip, c_dseq, c_aseq) in enumerate(connections):
+    for c_idx, (c_dep, c_arr, c_from, c_to, c_trip, _c_dseq, _c_aseq) in enumerate(connections):
         if c_dep < dep_sec:
             continue
-        if c_dep > best_end_arrival:      # nothing later can improve the target
+        if c_dep > best_end_arrival:  # nothing later can improve the target
             break
         boarded = c_trip in enter
         if not boarded and arrival.get(c_from, INF) <= c_dep:
@@ -209,14 +230,37 @@ def plan(feed_id: str, from_lat: float, from_lon: float,
     if best_stop is None:
         return []
 
-    itin = _reconstruct(connections, trip_meta, trip_stops, stops, pointer, enter,
-                        best_stop, ends[best_stop], depart_at, dep_sec, delays,
-                        (to_lat, to_lon))
+    itin = _reconstruct(
+        connections,
+        trip_meta,
+        trip_stops,
+        stops,
+        pointer,
+        enter,
+        best_stop,
+        ends[best_stop],
+        depart_at,
+        dep_sec,
+        delays,
+        (to_lat, to_lon),
+    )
     return [itin] if itin else []
 
 
-def _reconstruct(connections, trip_meta, trip_stops, stops, pointer, enter,
-                 end_stop, end_walk, depart_at, dep_sec, delays, dest) -> dict | None:
+def _reconstruct(
+    connections,
+    trip_meta,
+    trip_stops,
+    stops,
+    pointer,
+    enter,
+    end_stop,
+    end_walk,
+    depart_at,
+    dep_sec,
+    delays,
+    dest,
+) -> dict | None:
     legs: list[dict] = []
     cur = end_stop
     guard = 0
@@ -243,9 +287,18 @@ def _reconstruct(connections, trip_meta, trip_stops, stops, pointer, enter,
     # Trailing walk from last alight stop to destination.
     if end_walk > 0:
         name, lat, lon = stops[end_stop]
-        legs.append({"type": "walk", "from": name, "from_lat": lat, "from_lon": lon,
-                     "to": "Destination", "to_lat": dest[0], "to_lon": dest[1],
-                     "seconds": end_walk})
+        legs.append(
+            {
+                "type": "walk",
+                "from": name,
+                "from_lat": lat,
+                "from_lon": lon,
+                "to": "Destination",
+                "to_lat": dest[0],
+                "to_lon": dest[1],
+                "seconds": end_walk,
+            }
+        )
 
     if not legs:
         return None
@@ -283,19 +336,30 @@ def _ride_leg(connections, trip_meta, trip_stops, stops, e_idx, c_idx, delays):
     delay = delays.get(trip, 0)
     # This trip's own stops between board and alight (inclusive), in order.
     seq_stops = [sid for seq, sid in trip_stops.get(trip, []) if board_seq <= seq <= alight_seq]
-    stop_list = [{"name": stops[s][0], "lat": stops[s][1], "lon": stops[s][2]}
-                 for s in seq_stops if s in stops]
+    stop_list = [
+        {"name": stops[s][0], "lat": stops[s][1], "lon": stops[s][2]}
+        for s in seq_stops
+        if s in stops
+    ]
     bn, blat, blon = stops[connections[e_idx][2]]
     an, alat, alon = stops[connections[c_idx][3]]
     return {
         "type": "ride",
-        "route": meta.get("route"), "mode": meta.get("mode", "bus"),
-        "color": meta.get("color"), "headsign": meta.get("headsign", ""),
+        "route": meta.get("route"),
+        "mode": meta.get("mode", "bus"),
+        "color": meta.get("color"),
+        "headsign": meta.get("headsign", ""),
         "trip_id": trip,
-        "board": bn, "board_lat": blat, "board_lon": blon,
-        "alight": an, "alight_lat": alat, "alight_lon": alon,
-        "board_sec": board_dep, "alight_sec": alight_arr,
-        "delay_sec": delay, "live": trip in delays,
+        "board": bn,
+        "board_lat": blat,
+        "board_lon": blon,
+        "alight": an,
+        "alight_lat": alat,
+        "alight_lon": alon,
+        "board_sec": board_dep,
+        "alight_sec": alight_arr,
+        "delay_sec": delay,
+        "live": trip in delays,
         "num_stops": max(1, len(stop_list) - 1),
         "stops": stop_list,
     }

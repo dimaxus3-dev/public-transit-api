@@ -11,8 +11,19 @@ many partial/variant shapes per route), and writes two artifacts per city:
 These are immutable per feed version and are what the API serves. PostGIS is the
 scale-path upgrade (swap store.py); the pipeline stays the same.
 """
+
 from __future__ import annotations
-import csv, io, json, os, shutil, sys, zipfile, collections, sqlite3, urllib.request
+
+import collections
+import csv
+import io
+import json
+import os
+import shutil
+import sqlite3
+import sys
+import urllib.request
+import zipfile
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
@@ -21,9 +32,16 @@ MAX_ZIP_MB = int(os.environ.get("INGEST_MAX_ZIP_MB", "250"))
 MAX_UNPACKED_MB = int(os.environ.get("INGEST_MAX_UNPACKED_MB", "2500"))
 MAX_STOP_TIMES = int(os.environ.get("INGEST_MAX_STOP_TIMES", "8000000"))
 MODE_BY_ROUTE_TYPE = {
-    "0": "tram", "1": "metro", "2": "rail", "3": "bus",
-    "4": "ferry", "5": "cable_tram", "6": "aerial", "7": "funicular",
-    "11": "trolleybus", "12": "monorail",
+    "0": "tram",
+    "1": "metro",
+    "2": "rail",
+    "3": "bus",
+    "4": "ferry",
+    "5": "cable_tram",
+    "6": "aerial",
+    "7": "funicular",
+    "11": "trolleybus",
+    "12": "monorail",
 }
 
 
@@ -142,32 +160,40 @@ def _ingest_into(feed: dict, fid: str, final: str, out: str) -> dict:
         rtype = r.get("route_type", "3")
         color = r.get("route_color", "").strip()
         text = r.get("route_text_color", "").strip()
-        features.append({
-            "type": "Feature",
-            "properties": {
-                "route_id": rid,
-                "short_name": r.get("route_short_name", rid),
-                "long_name": r.get("route_long_name", ""),
-                "route_type": rtype,
-                "mode": MODE_BY_ROUTE_TYPE.get(rtype, "bus"),
-                "color": ("#" + color) if color else None,
-                "text_color": ("#" + text) if text else None,
-                "direction": direction,
-            },
-            "geometry": {"type": "LineString", "coordinates": shapes[sid]},
-        })
+        features.append(
+            {
+                "type": "Feature",
+                "properties": {
+                    "route_id": rid,
+                    "short_name": r.get("route_short_name", rid),
+                    "long_name": r.get("route_long_name", ""),
+                    "route_type": rtype,
+                    "mode": MODE_BY_ROUTE_TYPE.get(rtype, "bus"),
+                    "color": ("#" + color) if color else None,
+                    "text_color": ("#" + text) if text else None,
+                    "direction": direction,
+                },
+                "geometry": {"type": "LineString", "coordinates": shapes[sid]},
+            }
+        )
 
     geojson = {"type": "FeatureCollection", "features": features}
     with open(os.path.join(out, "lines.geojson"), "w", encoding="utf-8") as f:
         json.dump(geojson, f)
 
-    stop_list = [{
-        "id": s["stop_id"], "code": s.get("stop_code", ""),
-        "name": s["stop_name"],
-        "lat": float(s["stop_lat"]), "lon": float(s["stop_lon"]),
-        "location_type": s.get("location_type", "0"),
-        "parent_station": s.get("parent_station", ""),
-    } for s in stops if s.get("stop_lat") and s.get("stop_lon")]
+    stop_list = [
+        {
+            "id": s["stop_id"],
+            "code": s.get("stop_code", ""),
+            "name": s["stop_name"],
+            "lat": float(s["stop_lat"]),
+            "lon": float(s["stop_lon"]),
+            "location_type": s.get("location_type", "0"),
+            "parent_station": s.get("parent_station", ""),
+        }
+        for s in stops
+        if s.get("stop_lat") and s.get("stop_lon")
+    ]
     with open(os.path.join(out, "stops.json"), "w", encoding="utf-8") as f:
         json.dump(stop_list, f)
 
@@ -177,12 +203,24 @@ def _ingest_into(feed: dict, fid: str, final: str, out: str) -> dict:
     # Feed's own timezone from agency.txt — GTFS times are local wall-clock,
     # so departures/journeys must never fall back to the server's clock.
     agencies = _rows(z, "agency.txt")
-    tz = next((a.get("agency_timezone", "").strip() for a in agencies
-               if a.get("agency_timezone", "").strip()), None)
+    tz = next(
+        (
+            a.get("agency_timezone", "").strip()
+            for a in agencies
+            if a.get("agency_timezone", "").strip()
+        ),
+        None,
+    )
 
-    summary = {"feed": fid, "routes": len(routes), "trips": len(trips),
-               "shapes": len(shapes), "line_features": len(features),
-               "stops": len(stop_list), "timezone": tz}
+    summary = {
+        "feed": fid,
+        "routes": len(routes),
+        "trips": len(trips),
+        "shapes": len(shapes),
+        "line_features": len(features),
+        "stops": len(stop_list),
+        "timezone": tz,
+    }
     with open(os.path.join(out, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     print(f"[{fid}] {summary}")
@@ -206,10 +244,14 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
     db = sqlite3.connect(db_path)
     c = db.cursor()
     c.executescript("""
-        CREATE TABLE routes(route_id TEXT PRIMARY KEY, short_name TEXT, long_name TEXT, mode TEXT, color TEXT);
-        CREATE TABLE trips(trip_id TEXT PRIMARY KEY, route_id TEXT, service_id TEXT, headsign TEXT, direction TEXT);
+        CREATE TABLE routes(route_id TEXT PRIMARY KEY, short_name TEXT,
+                            long_name TEXT, mode TEXT, color TEXT);
+        CREATE TABLE trips(trip_id TEXT PRIMARY KEY, route_id TEXT,
+                           service_id TEXT, headsign TEXT, direction TEXT);
         CREATE TABLE stop_times(trip_id TEXT, stop_id TEXT, dep_sec INTEGER, seq INTEGER);
-        CREATE TABLE calendar(service_id TEXT, mon INT, tue INT, wed INT, thu INT, fri INT, sat INT, sun INT, start_date TEXT, end_date TEXT);
+        CREATE TABLE calendar(service_id TEXT, mon INT, tue INT, wed INT, thu INT,
+                              fri INT, sat INT, sun INT,
+                              start_date TEXT, end_date TEXT);
         CREATE TABLE calendar_dates(service_id TEXT, date TEXT, exception_type INT);
         CREATE TABLE stops(stop_id TEXT PRIMARY KEY, name TEXT, lat REAL, lon REAL, parent TEXT);
     """)
@@ -219,12 +261,29 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
         # Some agencies (CTA/MBTA rail) leave short_name empty and put "Blue
         # Line" in long_name — fall back so boards never show a blank badge.
         short = r.get("route_short_name", "").strip() or r.get("route_long_name", "").strip() or rid
-        c.execute("INSERT OR REPLACE INTO routes VALUES(?,?,?,?,?)",
-                  (rid, short, r.get("route_long_name", ""),
-                   MODE_BY_ROUTE_TYPE.get(rtype, "bus"), ("#" + color) if color else None))
-    c.executemany("INSERT OR REPLACE INTO trips VALUES(?,?,?,?,?)",
-                  [(t["trip_id"], t["route_id"], t.get("service_id", ""),
-                    t.get("trip_headsign", ""), t.get("direction_id", "0")) for t in _rows(z, "trips.txt")])
+        c.execute(
+            "INSERT OR REPLACE INTO routes VALUES(?,?,?,?,?)",
+            (
+                rid,
+                short,
+                r.get("route_long_name", ""),
+                MODE_BY_ROUTE_TYPE.get(rtype, "bus"),
+                ("#" + color) if color else None,
+            ),
+        )
+    c.executemany(
+        "INSERT OR REPLACE INTO trips VALUES(?,?,?,?,?)",
+        [
+            (
+                t["trip_id"],
+                t["route_id"],
+                t.get("service_id", ""),
+                t.get("trip_headsign", ""),
+                t.get("direction_id", "0"),
+            )
+            for t in _rows(z, "trips.txt")
+        ],
+    )
     st_rows = []
     for st in _rows(z, "stop_times.txt"):
         sec = _time_to_sec(st.get("departure_time") or st.get("arrival_time") or "")
@@ -234,16 +293,45 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
         if len(st_rows) > MAX_STOP_TIMES:
             raise ValueError(f"stop_times.txt exceeds {MAX_STOP_TIMES} rows limit")
     c.executemany("INSERT INTO stop_times VALUES(?,?,?,?)", st_rows)
-    c.executemany("INSERT INTO calendar VALUES(?,?,?,?,?,?,?,?,?,?)",
-                  [(r["service_id"], int(r["monday"]), int(r["tuesday"]), int(r["wednesday"]),
-                    int(r["thursday"]), int(r["friday"]), int(r["saturday"]), int(r["sunday"]),
-                    r["start_date"], r["end_date"]) for r in _rows(z, "calendar.txt")])
-    c.executemany("INSERT INTO calendar_dates VALUES(?,?,?)",
-                  [(r["service_id"], r["date"], int(r["exception_type"])) for r in _rows(z, "calendar_dates.txt")])
-    c.executemany("INSERT OR REPLACE INTO stops VALUES(?,?,?,?,?)",
-                  [(s["stop_id"], s["stop_name"], float(s["stop_lat"]), float(s["stop_lon"]),
-                    s.get("parent_station", ""))
-                   for s in _rows(z, "stops.txt") if s.get("stop_lat") and s.get("stop_lon")])
+    c.executemany(
+        "INSERT INTO calendar VALUES(?,?,?,?,?,?,?,?,?,?)",
+        [
+            (
+                r["service_id"],
+                int(r["monday"]),
+                int(r["tuesday"]),
+                int(r["wednesday"]),
+                int(r["thursday"]),
+                int(r["friday"]),
+                int(r["saturday"]),
+                int(r["sunday"]),
+                r["start_date"],
+                r["end_date"],
+            )
+            for r in _rows(z, "calendar.txt")
+        ],
+    )
+    c.executemany(
+        "INSERT INTO calendar_dates VALUES(?,?,?)",
+        [
+            (r["service_id"], r["date"], int(r["exception_type"]))
+            for r in _rows(z, "calendar_dates.txt")
+        ],
+    )
+    c.executemany(
+        "INSERT OR REPLACE INTO stops VALUES(?,?,?,?,?)",
+        [
+            (
+                s["stop_id"],
+                s["stop_name"],
+                float(s["stop_lat"]),
+                float(s["stop_lon"]),
+                s.get("parent_station", ""),
+            )
+            for s in _rows(z, "stops.txt")
+            if s.get("stop_lat") and s.get("stop_lon")
+        ],
+    )
     c.execute("CREATE INDEX idx_st_stop ON stop_times(stop_id, dep_sec)")
     c.execute("CREATE INDEX idx_cd ON calendar_dates(date, service_id)")
     c.execute("CREATE INDEX idx_stop_parent ON stops(parent)")
@@ -253,9 +341,12 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
 
 if __name__ == "__main__":
     from . import registry
+
     want = sys.argv[1] if len(sys.argv) > 1 else "szczecin-zditm"
     feed = registry.load().get(want)
     if not feed:
-        raise SystemExit(f"feed '{want}' not found in feeds.json / feeds_world.json "
-                         f"(run scripts/import_catalog.py to build the world registry)")
+        raise SystemExit(
+            f"feed '{want}' not found in feeds.json / feeds_world.json "
+            f"(run scripts/import_catalog.py to build the world registry)"
+        )
     ingest(feed)

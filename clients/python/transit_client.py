@@ -12,6 +12,7 @@
 
 stdlib only — copy this one file into your project and go.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,8 +30,9 @@ class TransitError(RuntimeError):
 
 
 class TransitClient:
-    def __init__(self, base_url: str = "http://localhost:8000",
-                 api_key: str = "", timeout: float = 30.0):
+    def __init__(
+        self, base_url: str = "http://localhost:8000", api_key: str = "", timeout: float = 30.0
+    ):
         self.base = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
@@ -39,10 +41,8 @@ class TransitClient:
     def health(self) -> dict:
         return self._get("/health")
 
-    def feeds(self, country: str = "", q: str = "", limit: int = 100,
-              offset: int = 0) -> dict:
-        return self._get("/feeds", country=country or None, q=q or None,
-                         limit=limit, offset=offset)
+    def feeds(self, country: str = "", q: str = "", limit: int = 100, offset: int = 0) -> dict:
+        return self._get("/feeds", country=country or None, q=q or None, limit=limit, offset=offset)
 
     def countries(self) -> dict:
         return self._get("/countries")
@@ -60,10 +60,10 @@ class TransitClient:
     def route_geometry(self, city: str, route_id: str) -> dict:
         return self._get(f"/routes/{city}/{route_id}/geometry")
 
-    def stops_nearby(self, city: str, lat: float, lng: float,
-                     radius: float = 500, limit: int = 50) -> list:
-        return self._get("/stops/nearby", city=city, lat=lat, lng=lng,
-                         radius=radius, limit=limit)
+    def stops_nearby(
+        self, city: str, lat: float, lng: float, radius: float = 500, limit: int = 50
+    ) -> list:
+        return self._get("/stops/nearby", city=city, lat=lat, lng=lng, radius=radius, limit=limit)
 
     def stops_search(self, city: str, q: str, limit: int = 12) -> list:
         return self._get("/stops/search", city=city, q=q, limit=limit)
@@ -71,11 +71,24 @@ class TransitClient:
     def departures(self, city: str, stop_id: str, limit: int = 10) -> dict:
         return self._get(f"/stops/{city}/{stop_id}/departures", limit=limit)
 
-    def journey(self, city: str, from_lat: float, from_lon: float,
-                to_lat: float, to_lon: float, time: str = "") -> dict:
-        return self._get("/journey", city=city, from_lat=from_lat,
-                         from_lon=from_lon, to_lat=to_lat, to_lon=to_lon,
-                         time=time or None)
+    def journey(
+        self,
+        city: str,
+        from_lat: float,
+        from_lon: float,
+        to_lat: float,
+        to_lon: float,
+        time: str = "",
+    ) -> dict:
+        return self._get(
+            "/journey",
+            city=city,
+            from_lat=from_lat,
+            from_lon=from_lon,
+            to_lat=to_lat,
+            to_lon=to_lon,
+            time=time or None,
+        )
 
     def vehicles(self, city: str) -> dict:
         return self._get("/vehicles/live", city=city)
@@ -83,11 +96,12 @@ class TransitClient:
     def vehicles_stream(self, city: str, interval: float = 5.0):
         """Yield one dict per SSE frame — an infinite generator:
 
-            for frame in t.vehicles_stream("szczecin-zditm"):
-                print(frame["count"], "vehicles on the map")
+        for frame in t.vehicles_stream("szczecin-zditm"):
+            print(frame["count"], "vehicles on the map")
         """
         url = f"{self.base}/vehicles/stream?" + urllib.parse.urlencode(
-            {"city": city, "interval": interval})
+            {"city": city, "interval": interval}
+        )
         req = urllib.request.Request(url, headers=self._headers())
         with urllib.request.urlopen(req, timeout=None) as resp:
             for raw in resp:

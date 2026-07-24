@@ -3,8 +3,14 @@ In-memory store over the ingested artifacts. Loads lines.geojson + stops.json
 per feed and answers the read queries the API needs. Swap this module for a
 PostGIS-backed one to scale (same interface); the ingest artifacts don't change.
 """
+
 from __future__ import annotations
-import json, math, os, re, functools
+
+import functools
+import json
+import math
+import os
+import re
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
@@ -20,8 +26,11 @@ def _feed_dir(feed_id: str) -> str:
 def available_feeds() -> list[str]:
     if not os.path.isdir(DATA_DIR):
         return []
-    return sorted(d for d in os.listdir(DATA_DIR)
-                  if os.path.exists(os.path.join(DATA_DIR, d, "lines.geojson")))
+    return sorted(
+        d
+        for d in os.listdir(DATA_DIR)
+        if os.path.exists(os.path.join(DATA_DIR, d, "lines.geojson"))
+    )
 
 
 @functools.lru_cache(maxsize=32)
@@ -56,7 +65,12 @@ def routes(feed_id: str) -> list[dict]:
         if p["route_id"] in seen:
             continue
         seen.add(p["route_id"])
-        out.append({k: p[k] for k in ("route_id", "short_name", "long_name", "mode", "color", "text_color")})
+        out.append(
+            {
+                k: p[k]
+                for k in ("route_id", "short_name", "long_name", "mode", "color", "text_color")
+            }
+        )
     return sorted(out, key=lambda r: (r["mode"], r["short_name"]))
 
 
@@ -74,7 +88,9 @@ def _haversine(lat1, lon1, lat2, lon2) -> float:
     return 2 * r * math.asin(min(1.0, math.sqrt(a)))
 
 
-def stops_nearby(feed_id: str, lat: float, lon: float, radius_m: float, limit: int = 50) -> list[dict]:
+def stops_nearby(
+    feed_id: str, lat: float, lon: float, radius_m: float, limit: int = 50
+) -> list[dict]:
     out = []
     for s in stops(feed_id):
         d = _haversine(lat, lon, s["lat"], s["lon"])

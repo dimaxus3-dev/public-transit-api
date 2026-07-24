@@ -13,8 +13,14 @@ polls) don't hammer the agency's endpoint.
 Kept dependency-free to match the rest of the backend: the protobuf wire format
 is decoded by hand — we only need a handful of scalar fields, no schema needed.
 """
+
 from __future__ import annotations
-import os, sqlite3, struct, time, urllib.request
+
+import os
+import sqlite3
+import struct
+import time
+import urllib.request
 from typing import Optional
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -43,17 +49,17 @@ def _fields(b: bytes) -> dict[int, list]:
     while i < n:
         key, i = _read_varint(b, i)
         fn, wt = key >> 3, key & 7
-        if wt == 0:          # varint
+        if wt == 0:  # varint
             v, i = _read_varint(b, i)
-        elif wt == 2:        # length-delimited
+        elif wt == 2:  # length-delimited
             ln, i = _read_varint(b, i)
-            v = b[i:i + ln]
+            v = b[i : i + ln]
             i += ln
-        elif wt == 5:        # fixed32
-            v = b[i:i + 4]
+        elif wt == 5:  # fixed32
+            v = b[i : i + 4]
             i += 4
-        elif wt == 1:        # fixed64
-            v = b[i:i + 8]
+        elif wt == 1:  # fixed64
+            v = b[i : i + 8]
             i += 8
         else:
             raise ValueError(f"unsupported wire type {wt}")
@@ -83,7 +89,7 @@ def _decode_vehicles(pb: bytes) -> list[dict]:
     out: list[dict] = []
     for eb in msg.get(2, []):
         e = _fields(eb)
-        if 4 not in e:            # not a VehiclePosition entity
+        if 4 not in e:  # not a VehiclePosition entity
             continue
         vp = _fields(e[4][0])
         pos = _fields(vp[2][0]) if 2 in vp else {}
@@ -93,16 +99,19 @@ def _decode_vehicles(pb: bytes) -> list[dict]:
             continue
         trip = _fields(vp[1][0]) if 1 in vp else {}
         veh = _fields(vp[8][0]) if 8 in vp else {}
-        out.append({
-            "id": _str(e[1][0]) if 1 in e else "",
-            "trip_id": _str(trip[1][0]) if 1 in trip else None,
-            "lat": round(lat, 6),
-            "lon": round(lon, 6),
-            "bearing": round(_f32(pos[3][0]), 1) if 3 in pos else None,
-            "label": (_str(veh[2][0]) if 2 in veh else
-                      (_str(veh[1][0]) if 1 in veh else None)),
-            "timestamp": int.from_bytes(vp[5][0], "little") if 5 in vp and isinstance(vp[5][0], (bytes, bytearray)) else (vp[5][0] if 5 in vp else None),
-        })
+        out.append(
+            {
+                "id": _str(e[1][0]) if 1 in e else "",
+                "trip_id": _str(trip[1][0]) if 1 in trip else None,
+                "lat": round(lat, 6),
+                "lon": round(lon, 6),
+                "bearing": round(_f32(pos[3][0]), 1) if 3 in pos else None,
+                "label": (_str(veh[2][0]) if 2 in veh else (_str(veh[1][0]) if 1 in veh else None)),
+                "timestamp": int.from_bytes(vp[5][0], "little")
+                if 5 in vp and isinstance(vp[5][0], (bytes, bytearray))
+                else (vp[5][0] if 5 in vp else None),
+            }
+        )
     return out
 
 
@@ -119,14 +128,20 @@ def _resolve_routes(feed_id: str, trip_ids: set[str]) -> dict[str, dict]:
     try:
         out: dict[str, dict] = {}
         ids = list(trip_ids)
-        for i in range(0, len(ids), 400):        # SQLite param limit safety
-            chunk = ids[i:i + 400]
-            q = ("SELECT t.trip_id, r.short_name, r.mode, r.color, t.headsign "
-                 "FROM trips t LEFT JOIN routes r ON r.route_id = t.route_id "
-                 f"WHERE t.trip_id IN ({','.join('?' * len(chunk))})")
+        for i in range(0, len(ids), 400):  # SQLite param limit safety
+            chunk = ids[i : i + 400]
+            q = (
+                "SELECT t.trip_id, r.short_name, r.mode, r.color, t.headsign "
+                "FROM trips t LEFT JOIN routes r ON r.route_id = t.route_id "
+                f"WHERE t.trip_id IN ({','.join('?' * len(chunk))})"
+            )
             for tid, short, mode, color, headsign in db.execute(q, chunk):
-                out[tid] = {"route": short, "mode": mode or "bus",
-                            "color": color, "headsign": headsign or ""}
+                out[tid] = {
+                    "route": short,
+                    "mode": mode or "bus",
+                    "color": color,
+                    "headsign": headsign or "",
+                }
         return out
     finally:
         db.close()
@@ -135,9 +150,9 @@ def _resolve_routes(feed_id: str, trip_ids: set[str]) -> dict[str, dict]:
 # --- public API (cached) ----------------------------------------------------
 
 _CACHE: dict[str, tuple[float, list[dict]]] = {}
-_TTL = 4.0            # seconds — agency feeds refresh every few seconds
+_TTL = 4.0  # seconds — agency feeds refresh every few seconds
 _FAIL_BACKOFF = 30.0  # after a fetch failure, don't re-try the upstream for this long
-_STALE_OK = 60.0      # serve a stale frame this old rather than fail
+_STALE_OK = 60.0  # serve a stale frame this old rather than fail
 _fail_at: dict[str, float] = {}
 
 
@@ -224,7 +239,7 @@ def trip_delays(feed_id: str, rt_trips_url: str) -> dict[str, int]:
     out: dict[str, int] = {}
     for eb in _fields(pb).get(2, []):
         e = _fields(eb)
-        if 3 not in e:                        # FeedEntity.trip_update = 3
+        if 3 not in e:  # FeedEntity.trip_update = 3
             continue
         tu = _fields(e[3][0])
         trip = _fields(tu[1][0]) if 1 in tu else {}
@@ -232,14 +247,15 @@ def trip_delays(feed_id: str, rt_trips_url: str) -> dict[str, int]:
         if not tid:
             continue
         delay: Optional[int] = None
-        if 5 in tu and isinstance(tu[5][0], int):          # TripUpdate.delay
+        if 5 in tu and isinstance(tu[5][0], int):  # TripUpdate.delay
             delay = _signed(tu[5][0])
         else:
-            for stu in tu.get(2, []):                        # first stop with a delay
+            for stu in tu.get(2, []):  # first stop with a delay
                 st = _fields(stu)
                 ev = _fields(st[3][0]) if 3 in st else (_fields(st[2][0]) if 2 in st else {})
                 if 1 in ev and isinstance(ev[1][0], int):
-                    delay = _signed(ev[1][0]); break
+                    delay = _signed(ev[1][0])
+                    break
         out[tid] = delay or 0
     _DELAY_CACHE[feed_id] = (now, out)
     return out

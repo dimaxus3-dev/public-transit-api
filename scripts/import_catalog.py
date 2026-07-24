@@ -15,6 +15,7 @@ Prefers `urls.latest` — MobilityData's own stable mirror of each feed's most
 recent zip — so imports don't break when an agency moves its download page.
 stdlib only.
 """
+
 from __future__ import annotations
 
 import csv
@@ -25,7 +26,7 @@ import random
 import sys
 import urllib.request
 
-CATALOG_URL = "https://bit.ly/catalogs-csv"   # official MobilityData catalog CSV
+CATALOG_URL = "https://bit.ly/catalogs-csv"  # official MobilityData catalog CSV
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT = os.path.join(ROOT, "feeds_world.json")
 
@@ -44,28 +45,35 @@ def build(rows: list[dict]) -> list[dict]:
         if r["status"] in ("deprecated", "inactive"):
             continue
         if r["urls.authentication_type"] not in ("", "0"):
-            continue                      # needs an API key — out of scope here
+            continue  # needs an API key — out of scope here
         url = r["urls.latest"] or r["urls.direct_download"]
         if not url:
             continue
         try:
-            lat = (float(r["location.bounding_box.minimum_latitude"])
-                   + float(r["location.bounding_box.maximum_latitude"])) / 2
-            lon = (float(r["location.bounding_box.minimum_longitude"])
-                   + float(r["location.bounding_box.maximum_longitude"])) / 2
+            lat = (
+                float(r["location.bounding_box.minimum_latitude"])
+                + float(r["location.bounding_box.maximum_latitude"])
+            ) / 2
+            lon = (
+                float(r["location.bounding_box.minimum_longitude"])
+                + float(r["location.bounding_box.maximum_longitude"])
+            ) / 2
         except ValueError:
             lat = lon = None
         city = r["location.municipality"] or r["location.subdivision_name"] or r["provider"]
-        feeds.append({
-            "id": f"mdb-{r['mdb_source_id']}",
-            "country": r["location.country_code"],
-            "city_region": city,
-            "agency_provider": r["provider"],
-            "name": r["name"],
-            "gtfs_static_url": url,
-            "lat": lat, "lon": lon,
-            "source": "mobility-database",
-        })
+        feeds.append(
+            {
+                "id": f"mdb-{r['mdb_source_id']}",
+                "country": r["location.country_code"],
+                "city_region": city,
+                "agency_provider": r["provider"],
+                "name": r["name"],
+                "gtfs_static_url": url,
+                "lat": lat,
+                "lon": lon,
+                "source": "mobility-database",
+            }
+        )
     return feeds
 
 
@@ -75,8 +83,11 @@ def verify_sample(feeds: list[dict], n: int) -> None:
     ok = 0
     for f in sample:
         try:
-            req = urllib.request.Request(f["gtfs_static_url"], method="HEAD",
-                                         headers={"User-Agent": "public-transit-api/0.1"})
+            req = urllib.request.Request(
+                f["gtfs_static_url"],
+                method="HEAD",
+                headers={"User-Agent": "public-transit-api/0.1"},
+            )
             with urllib.request.urlopen(req, timeout=15) as r:
                 good = 200 <= r.status < 400
         except Exception:
@@ -91,11 +102,21 @@ def main() -> None:
     rows = fetch_catalog()
     feeds = build(rows)
     countries = sorted({f["country"] for f in feeds if f["country"]})
-    json.dump({"generated_from": "MobilityData catalog", "count": len(feeds),
-               "countries": len(countries), "feeds": feeds},
-              open(OUT, "w"), ensure_ascii=False, indent=1)
-    print(f"wrote {os.path.relpath(OUT)}: {len(feeds)} keyless GTFS feeds "
-          f"in {len(countries)} countries")
+    json.dump(
+        {
+            "generated_from": "MobilityData catalog",
+            "count": len(feeds),
+            "countries": len(countries),
+            "feeds": feeds,
+        },
+        open(OUT, "w"),
+        ensure_ascii=False,
+        indent=1,
+    )
+    print(
+        f"wrote {os.path.relpath(OUT)}: {len(feeds)} keyless GTFS feeds "
+        f"in {len(countries)} countries"
+    )
     per = {}
     for f in feeds:
         per[f["country"]] = per.get(f["country"], 0) + 1
