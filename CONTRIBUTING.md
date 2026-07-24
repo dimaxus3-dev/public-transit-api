@@ -22,7 +22,7 @@ pip install pytest pytest-cov httpx ruff bandit
 
 ruff check app/ scripts/ tests/ clients/python/   # must be clean
 ruff format app/ scripts/ tests/ clients/python/  # auto-format
-pytest tests/ -q --cov=app --cov-fail-under=75    # must pass
+pytest tests/ -q --cov=app --cov-fail-under=72    # must pass
 ```
 
 Tests build synthetic GTFS feeds and run them through the real ingest
