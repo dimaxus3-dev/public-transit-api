@@ -1,22 +1,31 @@
 """
 City-transit read API — map geometry, stops, live vehicles and A→B routing.
 
-Serves the ingested GTFS artifacts to a map frontend / mobile app. Turns
-official GTFS Static feeds into per-city GeoJSON line layers (real route colors)
-and stop lists, plans door-to-door city journeys (walk + rides + transfers) with
-a stdlib Connection Scan router, and overlays live positions/delays where a feed
-publishes GTFS-Realtime. No API keys, no database — artifacts are flat files.
+Turns official GTFS Static feeds into per-city GeoJSON line layers (real route
+colors) and stop lists, plans door-to-door city journeys (walk + rides +
+transfers) with a stdlib Connection Scan router, and overlays live
+positions/delays where a feed publishes GTFS-Realtime. No API keys, no
+database — artifacts are flat files.
 
     pip install -r requirements.txt
     python -m app.ingest szczecin-zditm      # download + build artifacts
     uvicorn app.main:app --reload
+
+Optional hardening (all via environment variables, all off by default):
+    CORS_ORIGINS   comma-separated allowed origins (default "*")
+    RATE_LIMIT     requests per minute per client IP (default 120; 0 = off)
+    ADMIN_KEY      when set, POST /feeds/{id}/ingest requires X-API-Key
 """
 import datetime as dt
 import json
 import os
+import threading
+import time
+from collections import defaultdict, deque
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 try:
@@ -24,11 +33,41 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
+from . import ingest as ingest_mod
 from . import realtime, registry, routing, schedule, store
 
-app = FastAPI(title="City Transit API", version="1.0.0")
+app = FastAPI(title="City Transit API", version="1.1.0")
 
 _FEEDS = registry.load()
+
+# ── CORS (env-configurable; "*" by default so the API is easy to try) ────────
+_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",")]
+app.add_middleware(CORSMiddleware, allow_origins=_origins,
+                   allow_methods=["GET", "POST"], allow_headers=["X-API-Key"])
+
+# ── Rate limiting (sliding window per client IP, in-memory) ──────────────────
+_RATE = int(os.environ.get("RATE_LIMIT", "120"))          # req/min; 0 disables
+_hits: dict = defaultdict(deque)
+_hits_lock = threading.Lock()
+
+
+@app.middleware("http")
+async def _rate_limit(request: Request, call_next):
+    if _RATE > 0:
+        ip = request.client.host if request.client else "?"
+        now = time.time()
+        with _hits_lock:
+            q = _hits[ip]
+            while q and now - q[0] > 60:
+                q.popleft()
+            if len(q) >= _RATE:
+                return JSONResponse({"error": "rate limit exceeded"}, status_code=429)
+            q.append(now)
+    return await call_next(request)
+
+
+_ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+_ingesting: set = set()
 
 
 # ── meta ─────────────────────────────────────────────────────────────────────
@@ -50,6 +89,65 @@ def cities():
                     "country": f.get("country"), "agency": f.get("agency_provider"),
                     "lat": c[0] if c else None, "lon": c[1] if c else None})
     return out
+
+
+@app.get("/feeds")
+def feeds(country: Optional[str] = Query(None, description="2-letter code, e.g. IT"),
+          q: Optional[str] = Query(None, description="search city/agency name"),
+          limit: int = Query(100, le=2000), offset: int = 0):
+    """Browse EVERY registered feed (curated + world catalog) — every city and
+    region the API knows about, ingested or not. Filter by country or name."""
+    ingested = set(store.available_feeds())
+    ql = (q or "").lower()
+    out = []
+    for fid, f in _FEEDS.items():
+        if country and (f.get("country") or "").upper() != country.upper():
+            continue
+        if ql and ql not in f"{f.get('city_region','')} {f.get('agency_provider','')} {f.get('name','')}".lower():
+            continue
+        out.append({"feed": fid, "city": f.get("city_region"),
+                    "country": f.get("country"), "agency": f.get("agency_provider"),
+                    "lat": f.get("lat"), "lon": f.get("lon"),
+                    "ingested": fid in ingested})
+    out.sort(key=lambda x: ((x["country"] or "‾"), (x["city"] or "‾")))
+    return {"total": len(out), "feeds": out[offset:offset + limit]}
+
+
+@app.get("/countries")
+def countries():
+    """Country → feed count across the whole registry."""
+    per: dict = {}
+    for f in _FEEDS.values():
+        c = f.get("country") or "?"
+        per[c] = per.get(c, 0) + 1
+    return dict(sorted(per.items(), key=lambda kv: -kv[1]))
+
+
+def _do_ingest(fid: str):
+    try:
+        ingest_mod.ingest(_FEEDS[fid])
+    finally:
+        _ingesting.discard(fid)
+
+
+@app.post("/feeds/{feed_id}/ingest")
+def ingest_feed(feed_id: str, background: BackgroundTasks,
+                x_api_key: Optional[str] = Header(None)):
+    """Download + build a feed's artifacts in the background, so any of the
+    registered cities can be activated with one HTTP call (no shell needed).
+    Requires X-API-Key when ADMIN_KEY is set."""
+    if _ADMIN_KEY and x_api_key != _ADMIN_KEY:
+        raise HTTPException(401, "X-API-Key required")
+    if feed_id not in _FEEDS:
+        raise HTTPException(404, f"unknown feed '{feed_id}' — see /feeds")
+    if feed_id in store.available_feeds():
+        return {"status": "already ingested", "feed": feed_id}
+    if feed_id in _ingesting:
+        return {"status": "ingest already running", "feed": feed_id}
+    _ingesting.add(feed_id)
+    background.add_task(_do_ingest, feed_id)
+    return {"status": "ingest started", "feed": feed_id,
+            "check": f"/health until '{feed_id}' appears in ingested_feeds"}
 
 
 # ── routes & map geometry ────────────────────────────────────────────────────

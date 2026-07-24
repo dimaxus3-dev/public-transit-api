@@ -147,7 +147,7 @@ def vehicles_live(feed_id: str, rt_url: str) -> list[dict]:
     if hit and now - hit[0] < _TTL:
         return hit[1]
 
-    req = urllib.request.Request(rt_url, headers={"User-Agent": "flight-transit/1.0"})
+    req = urllib.request.Request(rt_url, headers={"User-Agent": "public-transit-api/1.0"})
     with urllib.request.urlopen(req, timeout=12) as r:
         pb = r.read()
 
@@ -183,7 +183,7 @@ def trip_delays(feed_id: str, rt_trips_url: str) -> dict[str, int]:
     if hit and now - hit[0] < _TTL:
         return hit[1]
     try:
-        req = urllib.request.Request(rt_trips_url, headers={"User-Agent": "flight-transit/1.0"})
+        req = urllib.request.Request(rt_trips_url, headers={"User-Agent": "public-transit-api/1.0"})
         with urllib.request.urlopen(req, timeout=12) as r:
             pb = r.read()
     except Exception:

@@ -38,7 +38,7 @@ def stops(feed_id: str) -> list[dict]:
 
 @functools.lru_cache(maxsize=32)
 def center(feed_id: str) -> tuple[float, float] | None:
-    """Median stop coordinate — a robust 'where is this feed' point the app
+    """Median stop coordinate — a robust 'where is this feed' point clients
     uses to auto-select the city nearest the user."""
     pts = [(s["lat"], s["lon"]) for s in stops(feed_id) if s.get("lat") and s.get("lon")]
     if not pts:

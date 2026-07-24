@@ -13,6 +13,8 @@ GTFS-Realtime. No API keys. No database. Artifacts are flat files.
   <img src="https://img.shields.io/badge/feeds-1500%2B-blue" alt="feeds">
   <img src="https://img.shields.io/badge/countries-71-orange" alt="countries">
   <img src="https://img.shields.io/badge/dependencies-fastapi%20%2B%20uvicorn-lightgrey" alt="deps">
+  <img src="https://github.com/dimaxus3-dev/public-transit-api/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-red" alt="license">
 </p>
 
 > **Public transport only** — city trams, buses, metro, urban & national rail.
@@ -122,6 +124,9 @@ from `feeds_world.json` by design.</sub>
 | Endpoint | Purpose |
 |---|---|
 | `GET /health` | Liveness + which feeds are ingested |
+| `GET /feeds` | **Browse all 1500+ registered feeds** — filter `?country=IT`, search `?q=venice` |
+| `GET /countries` | Feed count per country across the whole registry |
+| `POST /feeds/{id}/ingest` | Activate any registered city over HTTP (background download + build) |
 | `GET /cities` | Ingested cities + center coords (map picker) |
 | `GET /routes?city=` | Routes in a city (filter by `mode`) |
 | `GET /routes/{city}/{route_id}/geometry` | One route's line as GeoJSON |
@@ -241,13 +246,46 @@ python -m app.ingest szczecin-zditm    # download + build one city (stdlib only)
 uvicorn app.main:app --reload          # → http://127.0.0.1:8000/docs
 ```
 
+…or with Docker:
+
 ```bash
-curl "http://127.0.0.1:8000/cities"
+docker compose up --build              # → http://127.0.0.1:8000/docs
+```
+
+No keys or config required. Cities can also be activated at runtime, no shell:
+
+```bash
+curl "http://127.0.0.1:8000/feeds?q=lisboa"              # find a city
+curl -X POST "http://127.0.0.1:8000/feeds/mdb-1038/ingest"  # activate it
 curl "http://127.0.0.1:8000/journey?city=szczecin-zditm&from_lat=53.428&from_lon=14.552&to_lat=53.44&to_lon=14.49"
 ```
 
-No keys or config required. `data/` (ingested artifacts) is generated and
-gitignored — regenerate with `app.ingest`.
+### Hardening (optional, all via env)
+
+| Variable | Default | Effect |
+|---|---|---|
+| `RATE_LIMIT` | `120` | Requests per minute per client IP (`0` disables) |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
+| `ADMIN_KEY` | *(unset)* | When set, `POST /feeds/{id}/ingest` requires `X-API-Key` |
+
+### Tests & CI
+
+```bash
+pip install pytest httpx && pytest tests/ -q     # 9 end-to-end API tests
+```
+
+The suite builds a tiny synthetic GTFS feed, runs it through the real ingest
+pipeline and exercises every core endpoint — no network needed. GitHub Actions
+runs it on Python 3.9 + 3.12 and builds the Docker image on every push.
+
+### Scaling notes
+
+Flat files + SQLite intentionally keep the barrier to entry at zero — one
+process serves a country's worth of cities comfortably, since every query is
+an indexed lookup in a per-city SQLite. When one box stops being enough, the
+seams are already in place: `app/store.py` is the single data-access point to
+swap for PostgreSQL/PostGIS, ingests are idempotent (cron-friendly for
+background refresh), and every response is cacheable behind any HTTP cache.
 
 ---
 
@@ -255,6 +293,6 @@ gitignored — regenerate with `app.ingest`.
 
 **Made by Dmytro Serohyn**
 
-<sub>Keyless · GTFS static + realtime · 17 cities live · verified 2026-07-22</sub>
+<sub>Keyless · GTFS static + realtime · 1500+ feeds · 71 countries · noncommercial license</sub>
 
 </div>
