@@ -36,7 +36,22 @@ except ImportError:  # pragma: no cover
 from . import ingest as ingest_mod
 from . import realtime, registry, routing, schedule, store
 
-app = FastAPI(title="City Transit API", version="1.1.0")
+app = FastAPI(
+    title="City Transit API",
+    version="1.2.0",
+    description=(
+        "Keyless GTFS backend for city public transport: map-ready route "
+        "geometry, stops, departure boards, door-to-door journey planning and "
+        "live vehicle positions (GTFS-Realtime), for 1500+ feeds in 70+ "
+        "countries.\n\n"
+        "- Interactive docs: this page (`/docs`) · machine-readable schema: `/openapi.json`\n"
+        "- Errors follow **RFC 7807** (`application/problem+json`)\n"
+        "- Prometheus metrics at `/metrics`\n"
+        "- Live vehicles as **SSE** at `/vehicles/stream`"
+    ),
+    license_info={"name": "PolyForm Noncommercial 1.0.0",
+                  "url": "https://polyformproject.org/licenses/noncommercial/1.0.0/"},
+)
 
 _FEEDS = registry.load()
 
@@ -68,6 +83,81 @@ async def _rate_limit(request: Request, call_next):
 
 _ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 _ingesting: set = set()
+
+# ── RFC 7807 problem+json error responses ────────────────────────────────────
+_STATUS_TITLES = {400: "Bad Request", 401: "Unauthorized", 404: "Not Found",
+                  422: "Validation Error", 429: "Too Many Requests",
+                  500: "Internal Server Error", 502: "Bad Gateway"}
+
+
+def _problem(status: int, detail, instance: str = ""):
+    body = {"type": "about:blank",
+            "title": _STATUS_TITLES.get(status, "Error"),
+            "status": status, "detail": detail}
+    if instance:
+        body["instance"] = instance
+    return JSONResponse(body, status_code=status,
+                        media_type="application/problem+json")
+
+
+@app.exception_handler(HTTPException)
+async def _http_exc(request: Request, exc: HTTPException):
+    return _problem(exc.status_code, exc.detail, str(request.url.path))
+
+
+@app.exception_handler(Exception)
+async def _any_exc(request: Request, exc: Exception):
+    return _problem(500, f"{type(exc).__name__}: {str(exc)[:200]}",
+                    str(request.url.path))
+
+
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exc(request: Request, exc: RequestValidationError):
+    return _problem(422, exc.errors(), str(request.url.path))
+
+
+# ── Prometheus-style metrics (no dependency; text exposition format) ─────────
+_metrics_lock = threading.Lock()
+_req_count: dict = defaultdict(int)          # (path_template, status) -> n
+_req_ms_sum: dict = defaultdict(float)       # path_template -> total ms
+_started_at = time.time()
+
+
+@app.middleware("http")
+async def _measure(request: Request, call_next):
+    t0 = time.time()
+    response = await call_next(request)
+    route = request.scope.get("route")
+    path = getattr(route, "path", request.url.path)
+    with _metrics_lock:
+        _req_count[(path, response.status_code)] += 1
+        _req_ms_sum[path] += (time.time() - t0) * 1000
+    return response
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    """Prometheus text exposition — point Prometheus/Grafana straight here."""
+    from fastapi.responses import PlainTextResponse
+    L = ["# HELP transit_requests_total HTTP requests by path and status",
+         "# TYPE transit_requests_total counter"]
+    with _metrics_lock:
+        for (path, status), n in sorted(_req_count.items()):
+            L.append(f'transit_requests_total{{path="{path}",status="{status}"}} {n}')
+        L.append("# HELP transit_request_ms_sum Total handler milliseconds by path")
+        L.append("# TYPE transit_request_ms_sum counter")
+        for path, ms in sorted(_req_ms_sum.items()):
+            L.append(f'transit_request_ms_sum{{path="{path}"}} {ms:.1f}')
+    L.append("# HELP transit_uptime_seconds Seconds since process start")
+    L.append("# TYPE transit_uptime_seconds gauge")
+    L.append(f"transit_uptime_seconds {time.time() - _started_at:.0f}")
+    L.append("# HELP transit_ingested_feeds Number of ingested feeds")
+    L.append("# TYPE transit_ingested_feeds gauge")
+    L.append(f"transit_ingested_feeds {len(store.available_feeds())}")
+    return PlainTextResponse("\n".join(L) + "\n", media_type="text/plain; version=0.0.4")
 
 
 # ── meta ─────────────────────────────────────────────────────────────────────
@@ -272,6 +362,41 @@ def vehicles_live(city: str = Query(..., description="feed id, e.g. szczecin-zdi
         return {"city": city, "vehicles": realtime.vehicles_live(city, rt_url)}
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"realtime feed unavailable: {e}")
+
+
+@app.get("/vehicles/stream")
+async def vehicles_stream(city: str = Query(..., description="feed id"),
+                          interval: float = Query(5.0, ge=2.0, le=30.0)):
+    """**Server-Sent Events** stream of live vehicle positions — subscribe once
+    and receive a fresh frame every `interval` seconds; no polling code needed:
+
+        const es = new EventSource("/vehicles/stream?city=szczecin-zditm");
+        es.onmessage = (e) => drawVehicles(JSON.parse(e.data));
+
+    Each event's `data:` is the same JSON as GET /vehicles/live. Ends only when
+    the client disconnects."""
+    _require(city)
+    rt_url = _rt_vehicles_url(city)
+    if not rt_url:
+        raise HTTPException(404, f"feed '{city}' publishes no GTFS-RT vehicles")
+
+    import asyncio
+
+    async def gen():
+        while True:
+            try:
+                vehicles = await asyncio.to_thread(realtime.vehicles_live, city, rt_url)
+                payload = json.dumps({"city": city, "count": len(vehicles),
+                                      "vehicles": vehicles}, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+            except Exception as e:  # noqa: BLE001 — keep the stream alive
+                yield f"event: error\ndata: {json.dumps(str(e)[:200])}\n\n"
+            await asyncio.sleep(interval)
+
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

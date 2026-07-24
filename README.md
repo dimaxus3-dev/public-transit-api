@@ -151,8 +151,49 @@ from `feeds_world.json` by design.</sub>
 | `GET /stops/{city}/{stop_id}/departures` | Next departures ("My Stop" board), live |
 | `GET /journey` | **Plan A→B** — walk + rides + transfers, live delays |
 | `GET /vehicles/live?city=` | Live vehicle positions (GTFS-RT feeds) |
+| `GET /vehicles/stream?city=` | **SSE stream** of live vehicles — subscribe once, frames every 5 s |
+| `GET /metrics` | Prometheus text exposition (requests, latency, ingested feeds) |
 
-Interactive docs at `/docs` once the server is up.
+**Interactive Swagger docs at [`/docs`](http://localhost:8000/docs)**, raw
+schema at `/openapi.json`. All errors are **RFC 7807** `application/problem+json`
+(`{"type", "title", "status", "detail", "instance"}`) — never a raw 500.
+
+### 📦 Client SDKs — two lines to connect
+
+Single-file, zero-dependency clients you can copy straight into a project:
+
+**Python** ([`clients/python/transit_client.py`](clients/python/transit_client.py)):
+
+```python
+from transit_client import TransitClient
+
+t = TransitClient("http://localhost:8000")
+t.ingest("mdb-648")                                   # activate Vienna
+plan = t.journey("szczecin-zditm", 53.428, 14.552, 53.44, 14.49)
+for frame in t.vehicles_stream("szczecin-zditm"):     # live SSE frames
+    print(frame["count"], "vehicles")
+```
+
+**JavaScript / TypeScript** ([`clients/js/transit-client.js`](clients/js/transit-client.js)) —
+browser, Node 18+, Deno, Bun:
+
+```js
+import { TransitClient } from "./transit-client.js";
+
+const t = new TransitClient("http://localhost:8000");
+const { feeds } = await t.feeds({ country: "IT" });
+t.vehiclesStream("szczecin-zditm", f => drawMarkers(f.vehicles));
+```
+
+### 📈 Monitoring
+
+`GET /metrics` serves Prometheus text format out of the box — request counts
+per endpoint and status, handler latency, uptime and ingested-feed gauge.
+Point a Prometheus scrape job (and Grafana on top) straight at it; no
+dependencies, no sidecar. Caching is layered in-process (LRU for geometry and
+stops, 4-second TTL for GTFS-RT frames), so a busy map never re-downloads or
+re-parses anything — swap in Redis behind `app/store.py` when you outgrow one
+process.
 
 ---
 
