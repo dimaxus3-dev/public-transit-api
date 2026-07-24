@@ -135,21 +135,41 @@ def _resolve_routes(feed_id: str, trip_ids: set[str]) -> dict[str, dict]:
 # --- public API (cached) ----------------------------------------------------
 
 _CACHE: dict[str, tuple[float, list[dict]]] = {}
-_TTL = 4.0  # seconds — agency feeds refresh every few seconds
+_TTL = 4.0            # seconds — agency feeds refresh every few seconds
+_FAIL_BACKOFF = 30.0  # after a fetch failure, don't re-try the upstream for this long
+_STALE_OK = 60.0      # serve a stale frame this old rather than fail
+_fail_at: dict[str, float] = {}
 
 
 def vehicles_live(feed_id: str, rt_url: str) -> list[dict]:
     """Live vehicles for a feed as [{id, route, mode, color, lat, lon, bearing,
     label, headsign, trip_id, timestamp}], newest cached within _TTL seconds.
-    Raises on fetch/decode failure so the API can 502."""
+
+    Degrades gracefully when the protobuf stream stops answering: a recent
+    stale frame (< _STALE_OK) is served instead, upstream is not re-tried for
+    _FAIL_BACKOFF seconds (so requests fail/serve-stale instantly instead of
+    each hanging on the socket timeout), and only with no usable frame at all
+    does it raise (the API then 502s)."""
     now = time.time()
     hit = _CACHE.get(feed_id)
     if hit and now - hit[0] < _TTL:
         return hit[1]
 
-    req = urllib.request.Request(rt_url, headers={"User-Agent": "public-transit-api/1.0"})
-    with urllib.request.urlopen(req, timeout=12) as r:
-        pb = r.read()
+    if now - _fail_at.get(feed_id, float("-inf")) < _FAIL_BACKOFF:
+        if hit and now - hit[0] < _STALE_OK:
+            return hit[1]
+        raise RuntimeError("realtime feed unavailable (in backoff)")
+
+    try:
+        req = urllib.request.Request(rt_url, headers={"User-Agent": "public-transit-api/1.0"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            pb = r.read()
+    except Exception:
+        _fail_at[feed_id] = now
+        if hit and now - hit[0] < _STALE_OK:
+            return hit[1]
+        raise
+    _fail_at.pop(feed_id, None)
 
     vehicles = _decode_vehicles(pb)
     routes = _resolve_routes(feed_id, {v["trip_id"] for v in vehicles if v["trip_id"]})
@@ -174,19 +194,31 @@ def _signed(v: int) -> int:
     return v - (1 << 64) if v >= (1 << 63) else v
 
 
+_delay_fail_at: dict[str, float] = {}
+
+
 def trip_delays(feed_id: str, rt_trips_url: str) -> dict[str, int]:
     """Map trip_id -> current delay in seconds, from the GTFS-RT TripUpdate feed.
     A representative per-trip delay (TripUpdate.delay, else the first stop's
-    departure/arrival delay). Cached within _TTL. Empty on any failure."""
+    departure/arrival delay). Cached within _TTL.
+
+    Never raises: on upstream failure the last known delays (or {}) come back,
+    so departure boards and journeys silently fall back to the static
+    timetable. A failed upstream is left alone for _FAIL_BACKOFF seconds —
+    one slow request per backoff window, everyone else answers instantly."""
     now = time.time()
     hit = _DELAY_CACHE.get(feed_id)
     if hit and now - hit[0] < _TTL:
         return hit[1]
+    if now - _delay_fail_at.get(feed_id, float("-inf")) < _FAIL_BACKOFF:
+        return hit[1] if hit else {}
     try:
         req = urllib.request.Request(rt_trips_url, headers={"User-Agent": "public-transit-api/1.0"})
-        with urllib.request.urlopen(req, timeout=12) as r:
+        with urllib.request.urlopen(req, timeout=6) as r:
             pb = r.read()
+        _delay_fail_at.pop(feed_id, None)
     except Exception:
+        _delay_fail_at[feed_id] = now
         return hit[1] if hit else {}
 
     out: dict[str, int] = {}

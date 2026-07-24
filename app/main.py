@@ -36,7 +36,17 @@ except ImportError:  # pragma: no cover
 from . import ingest as ingest_mod
 from . import realtime, registry, routing, schedule, store
 
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def _lifespan(_app):
+    _start_prewarm()      # defined below; lifts ingested cities into RAM
+    yield
+
+
 app = FastAPI(
+    lifespan=_lifespan,
     title="City Transit API",
     version="1.2.0",
     description=(
@@ -83,6 +93,33 @@ async def _rate_limit(request: Request, call_next):
 
 _ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 _ingesting: set = set()
+
+
+# ── Startup pre-warm: lift every ingested city's graph into RAM ──────────────
+# Routing/geometry caches are lazy (first request pays the build cost). On
+# startup a daemon thread walks the ingested feeds and pre-builds today's
+# routing graph + geometry, so the first user is as fast as the thousandth.
+# Disable with PREWARM=0 (e.g. in tests or memory-tight environments).
+
+def _prewarm_feeds() -> int:
+    warmed = 0
+    today = dt.datetime.now().strftime("%Y%m%d")
+    for fid in store.available_feeds():
+        try:
+            store.routes(fid)
+            store.center(fid)
+            routing._stops(fid)
+            routing._footpaths(fid)
+            routing._day_connections(fid, today)
+            warmed += 1
+        except Exception:  # noqa: BLE001 — a bad feed must not break startup
+            pass
+    return warmed
+
+
+def _start_prewarm():
+    if os.environ.get("PREWARM", "1") != "0":
+        threading.Thread(target=_prewarm_feeds, daemon=True).start()
 
 # ── RFC 7807 problem+json error responses ────────────────────────────────────
 _STATUS_TITLES = {400: "Bad Request", 401: "Unauthorized", 404: "Not Found",

@@ -41,7 +41,7 @@ def _haversine(lat1, lon1, lat2, lon2) -> float:
     return 2 * r * math.asin(min(1.0, math.sqrt(a)))
 
 
-@functools.lru_cache(maxsize=8)
+@functools.lru_cache(maxsize=32)
 def _stops(feed_id: str) -> dict[str, tuple[str, float, float]]:
     db = _db(feed_id)
     if not db:
@@ -52,7 +52,7 @@ def _stops(feed_id: str) -> dict[str, tuple[str, float, float]]:
     return out
 
 
-@functools.lru_cache(maxsize=8)
+@functools.lru_cache(maxsize=32)
 def _footpaths(feed_id: str) -> dict[str, list[tuple[str, int]]]:
     """Walkable transfers between nearby stops (grid-bucketed so we don't do a
     full O(n^2) sweep). Built once per feed."""
@@ -80,7 +80,7 @@ def _footpaths(feed_id: str) -> dict[str, list[tuple[str, int]]]:
 
 
 # A connection: (dep_sec, arr_sec, dep_stop, arr_stop, trip_id, seq)
-@functools.lru_cache(maxsize=8)
+@functools.lru_cache(maxsize=32)
 def _day_connections(feed_id: str, date_key: str):
     """Sorted connections + per-trip metadata for one service day. `date_key` is
     YYYYMMDD; cached so repeated queries on the same day are instant."""

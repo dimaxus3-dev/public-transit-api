@@ -207,3 +207,65 @@ def test_python_sdk_against_test_app(client, monkeypatch):
     with pytest.raises(tc.TransitError) as e:
         t.routes("nope-city")
     assert e.value.status == 404
+
+
+def test_delays_degrade_to_static_schedule(client, monkeypatch):
+    """RT stream down → departures still 200 from the static timetable,
+    upstream tried exactly once per backoff window (no per-request hangs)."""
+    import app.main as m
+    from app import realtime
+
+    attempts = {"n": 0}
+
+    def dead_urlopen(*a, **kw):
+        attempts["n"] += 1
+        raise OSError("connection reset")
+
+    monkeypatch.setitem(m._FEEDS, FID,
+                        {"id": FID, "gtfs_rt_trips_url": "http://rt.example/pb"})
+    monkeypatch.setattr(realtime.urllib.request, "urlopen", dead_urlopen)
+    realtime._DELAY_CACHE.pop(FID, None)
+    realtime._delay_fail_at.pop(FID, None)
+
+    for _ in range(3):
+        r = client.get(f"/stops/{FID}/A/departures", params={"limit": 3})
+        assert r.status_code == 200
+        assert all(not d["live"] and d["delay_sec"] == 0
+                   for d in r.json()["departures"])
+    assert attempts["n"] == 1          # backoff: one probe, not one per request
+
+    realtime._delay_fail_at.pop(FID, None)
+
+
+def test_vehicles_serve_stale_frame_when_upstream_dies(monkeypatch):
+    from app import realtime
+    import time as _t
+
+    realtime._CACHE["ghost"] = (_t.time() - 10, [{"id": "v1"}])   # stale but recent
+    realtime._fail_at.pop("ghost", None)
+
+    def dead_urlopen(*a, **kw):
+        raise OSError("timed out")
+
+    monkeypatch.setattr(realtime.urllib.request, "urlopen", dead_urlopen)
+    assert realtime.vehicles_live("ghost", "http://rt.example/pb") == [{"id": "v1"}]
+
+    realtime._CACHE["ghost"] = (_t.time() - 300, [{"id": "v1"}])  # too old to trust
+    realtime._fail_at.pop("ghost", None)
+    with pytest.raises(Exception):
+        realtime.vehicles_live("ghost", "http://rt.example/pb")
+    with pytest.raises(RuntimeError, match="backoff"):            # instant, no fetch
+        realtime.vehicles_live("ghost", "http://rt.example/pb")
+
+    realtime._CACHE.pop("ghost", None)
+    realtime._fail_at.pop("ghost", None)
+
+
+def test_prewarm_builds_ram_caches(client):
+    import app.main as m
+    from app import routing
+    routing._stops.cache_clear()
+    routing._day_connections.cache_clear()
+    assert m._prewarm_feeds() >= 1                     # fixture feed warmed
+    assert routing._stops.cache_info().currsize >= 1
+    assert routing._day_connections.cache_info().currsize >= 1

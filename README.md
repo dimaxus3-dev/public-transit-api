@@ -190,10 +190,20 @@ t.vehiclesStream("szczecin-zditm", f => drawMarkers(f.vehicles));
 `GET /metrics` serves Prometheus text format out of the box — request counts
 per endpoint and status, handler latency, uptime and ingested-feed gauge.
 Point a Prometheus scrape job (and Grafana on top) straight at it; no
-dependencies, no sidecar. Caching is layered in-process (LRU for geometry and
-stops, 4-second TTL for GTFS-RT frames), so a busy map never re-downloads or
-re-parses anything — swap in Redis behind `app/store.py` when you outgrow one
-process.
+dependencies, no sidecar.
+
+**In-RAM by design.** At startup every ingested city's routing graph, stops
+and geometry are pre-built into memory (`PREWARM=1`, on by default), so the
+first user is as fast as the thousandth; after that, all hot paths are LRU/TTL
+caches — a busy map never re-reads or re-parses anything. Swap in Redis behind
+`app/store.py` when you outgrow one process.
+
+**Realtime degrades gracefully.** If a city's GTFS-RT protobuf stream stops
+answering, departure boards and journeys fall back to the static timetable
+instantly (delays simply read `live: false`), vehicle maps keep serving the
+last frame for up to 60 s, and the dead upstream is left alone for 30 s
+between probes — no request ever hangs on a dying socket, and everything
+snaps back to live the moment the feed recovers.
 
 ---
 
@@ -322,6 +332,7 @@ curl "http://127.0.0.1:8000/journey?city=szczecin-zditm&from_lat=53.428&from_lon
 | `RATE_LIMIT` | `120` | Requests per minute per client IP (`0` disables) |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
 | `ADMIN_KEY` | *(unset)* | When set, `POST /feeds/{id}/ingest` requires `X-API-Key` |
+| `PREWARM` | `1` | Pre-build every ingested city's routing graph in RAM at startup (`0` disables) |
 
 ### Tests & CI
 
