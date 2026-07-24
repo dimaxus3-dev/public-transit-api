@@ -110,7 +110,7 @@ jobs:
           git archive --format=tar.gz -o source.tar.gz "$GITHUB_REF_NAME"
           sha256sum public-transit-api-* source.tar.gz sbom.spdx.json > SHA256SUMS
       - name: Attach everything to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             public-transit-api-*
