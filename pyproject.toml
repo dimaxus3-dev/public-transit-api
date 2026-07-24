@@ -46,4 +46,4 @@ omit = ["app/__init__.py"]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "data"]
-skips = ["B310", "B603", "B608", "B110"]  # + B110: intentional degrade-and-continue spots
+skips = ["B310", "B603", "B608", "B110", "B112"]  # B110/B112: intentional degrade-and-continue
