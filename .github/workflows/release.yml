@@ -77,14 +77,20 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $p = Start-Process -PassThru ".\public-transit-api-windows-x64.exe" -ArgumentList "--port","8123"
+          $p = Start-Process -PassThru ".\public-transit-api-windows-x64.exe" `
+               -ArgumentList "--port","8123" `
+               -RedirectStandardOutput out.log -RedirectStandardError err.log
           $ok = $false
-          foreach ($i in 1..45) {
+          foreach ($i in 1..60) {
             try { Invoke-RestMethod http://127.0.0.1:8123/health | Out-Null; $ok = $true; break }
             catch { Start-Sleep 1 }
           }
-          Stop-Process -Id $p.Id -Force
-          if (-not $ok) { exit 1 }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) {
+            Write-Host "--- binary stdout ---"; Get-Content out.log -ErrorAction SilentlyContinue
+            Write-Host "--- binary stderr ---"; Get-Content err.log -ErrorAction SilentlyContinue
+            exit 1
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: bin-${{ matrix.target }}

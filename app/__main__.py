@@ -21,7 +21,8 @@ def main() -> None:
 
     from app.main import app
 
-    print(f"City Transit API → http://{args.host}:{args.port}/docs")
+    # ASCII only: Windows consoles default to cp1252 and crash on fancy arrows.
+    print(f"City Transit API -> http://{args.host}:{args.port}/docs")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 
