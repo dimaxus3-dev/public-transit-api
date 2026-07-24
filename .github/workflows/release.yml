@@ -25,6 +25,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=tag
             latest
       - uses: docker/build-push-action@v6
         with:
@@ -33,24 +34,86 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  sbom-and-checksums:
+  binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: windows-latest
+            target: windows-x64
+            ext: .exe
+          - os: macos-13
+            target: macos-intel
+          - os: macos-latest
+            target: macos-apple-silicon
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build single-file binary
+        shell: bash
+        run: |
+          pip install -r requirements.txt pyinstaller
+          pyinstaller --onefile --name public-transit-api \
+            --add-data "$PWD/feeds.json:." \
+            --add-data "$PWD/feeds_world.json:." \
+            --collect-submodules app --hidden-import uvicorn.logging \
+            app/__main__.py
+          mv "dist/public-transit-api${{ matrix.ext }}" \
+             "public-transit-api-${{ matrix.target }}${{ matrix.ext }}"
+      - name: Smoke-test binary
+        if: matrix.os != 'windows-latest'
+        run: |
+          ./public-transit-api-${{ matrix.target }} --port 8123 &
+          for i in $(seq 1 45); do
+            curl -sf http://127.0.0.1:8123/health && ok=1 && break
+            sleep 1
+          done
+          [ "$ok" = "1" ]
+      - name: Smoke-test binary (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $p = Start-Process -PassThru ".\public-transit-api-windows-x64.exe" -ArgumentList "--port","8123"
+          $ok = $false
+          foreach ($i in 1..45) {
+            try { Invoke-RestMethod http://127.0.0.1:8123/health | Out-Null; $ok = $true; break }
+            catch { Start-Sleep 1 }
+          }
+          Stop-Process -Id $p.Id -Force
+          if (-not $ok) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.target }}
+          path: public-transit-api-${{ matrix.target }}*
+
+  publish-assets:
+    needs: binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          merge-multiple: true
       - name: Generate SBOM (SPDX)
         uses: anchore/sbom-action@v0
         with:
           path: .
           format: spdx-json
           output-file: sbom.spdx.json
-      - name: Source archive + checksums
+      - name: Source archive + combined checksums
         run: |
           git archive --format=tar.gz -o source.tar.gz "$GITHUB_REF_NAME"
-          shasum -a 256 source.tar.gz sbom.spdx.json > SHA256SUMS.txt
-      - name: Attach artifacts to the release
+          sha256sum public-transit-api-* source.tar.gz sbom.spdx.json > SHA256SUMS
+      - name: Attach everything to the release
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            public-transit-api-*
             sbom.spdx.json
             source.tar.gz
-            SHA256SUMS.txt
+            SHA256SUMS

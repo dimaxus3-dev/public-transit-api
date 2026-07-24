@@ -7,13 +7,14 @@ overlays **live** vehicle positions and delays where a city publishes
 GTFS-Realtime. No API keys. No external database server required — artifacts are flat files + per-city SQLite.
 
 <p>
+  <a href="https://github.com/dimaxus3-dev/public-transit-api/releases/latest"><img src="https://img.shields.io/github/v/release/dimaxus3-dev/public-transit-api?label=latest%20release" alt="latest release"></a>
+  <a href="https://github.com/dimaxus3-dev/public-transit-api/releases"><img src="https://img.shields.io/github/downloads/dimaxus3-dev/public-transit-api/total?label=downloads" alt="downloads"></a>
+  <a href="https://github.com/dimaxus3-dev/public-transit-api/pkgs/container/public-transit-api"><img src="https://img.shields.io/badge/ghcr.io-public--transit--api-2496ED?logo=docker&logoColor=white" alt="docker"></a>
+  <img src="https://github.com/dimaxus3-dev/public-transit-api/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://img.shields.io/badge/coverage-75%25-yellowgreen" alt="coverage">
   <img src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white" alt="python">
-  <img src="https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white" alt="fastapi">
-  <img src="https://img.shields.io/badge/API%20keys-0%20required-brightgreen" alt="keyless">
   <img src="https://img.shields.io/badge/feeds-1500%2B-blue" alt="feeds">
   <img src="https://img.shields.io/badge/countries-71-orange" alt="countries">
-  <img src="https://img.shields.io/badge/dependencies-fastapi%20%2B%20uvicorn-lightgrey" alt="deps">
-  <img src="https://github.com/dimaxus3-dev/public-transit-api/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-red" alt="license">
 </p>
 
@@ -382,13 +383,30 @@ flowchart LR
 
 ## ▶️ Run
 
+**No install at all** — grab a prebuilt binary from the
+[latest release](https://github.com/dimaxus3-dev/public-transit-api/releases/latest)
+(Linux x64 · Windows x64 · macOS Intel · macOS Apple Silicon; the 1500-city
+registry is embedded, `SHA256SUMS` attached):
+
+```bash
+chmod +x public-transit-api-linux-x64 && ./public-transit-api-linux-x64 --port 8000
+```
+
+…or from a GHCR image:
+
+```bash
+docker run -p 8000:8000 ghcr.io/dimaxus3-dev/public-transit-api:latest
+```
+
+…or from source:
+
 ```bash
 pip install -r requirements.txt        # fastapi + uvicorn, nothing else
 python -m app.ingest szczecin-zditm    # download + build one city (stdlib only)
 uvicorn app.main:app --reload          # → http://127.0.0.1:8000/docs
 ```
 
-…or with Docker:
+…or build the Docker image yourself:
 
 ```bash
 docker compose up --build              # → http://127.0.0.1:8000/docs

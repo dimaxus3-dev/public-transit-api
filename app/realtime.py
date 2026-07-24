@@ -23,7 +23,7 @@ import time
 import urllib.request
 from typing import Optional
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+from .paths import DATA_DIR  # noqa: E402
 
 # --- minimal protobuf wire reader (stdlib only) -----------------------------
 # We decode just the GTFS-RT fields we use, so a tiny generic reader suffices.

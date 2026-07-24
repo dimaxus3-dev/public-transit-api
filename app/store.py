@@ -12,7 +12,7 @@ import math
 import os
 import re
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+from .paths import DATA_DIR  # noqa: E402
 
 
 def _feed_dir(feed_id: str) -> str:

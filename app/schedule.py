@@ -10,7 +10,8 @@ import datetime as dt
 import os
 import sqlite3
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+from .paths import DATA_DIR  # noqa: E402
+
 _WEEKDAY_COL = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # Python Mon=0
 
 

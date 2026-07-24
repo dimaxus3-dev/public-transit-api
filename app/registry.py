@@ -11,15 +11,15 @@ from __future__ import annotations
 import json
 import os
 
-_ROOT = os.path.join(os.path.dirname(__file__), "..")
+from .paths import registry_file
 
 
 def load() -> dict[str, dict]:
     feeds: dict[str, dict] = {}
-    world_path = os.path.join(_ROOT, "feeds_world.json")
+    world_path = registry_file("feeds_world.json")
     if os.path.exists(world_path):
         for f in json.load(open(world_path))["feeds"]:
             feeds[f["id"]] = f
-    for f in json.load(open(os.path.join(_ROOT, "feeds.json")))["feeds"]:
+    for f in json.load(open(registry_file("feeds.json")))["feeds"]:
         feeds[f["id"]] = f  # curated overrides world
     return feeds

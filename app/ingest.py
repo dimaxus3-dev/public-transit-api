@@ -25,7 +25,7 @@ import sys
 import urllib.request
 import zipfile
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+from .paths import DATA_DIR  # noqa: E402
 
 # Resource limits — a hostile or broken feed must not exhaust the host.
 MAX_ZIP_MB = int(os.environ.get("INGEST_MAX_ZIP_MB", "250"))
