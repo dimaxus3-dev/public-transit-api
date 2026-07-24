@@ -523,3 +523,12 @@ def test_ingest_status_endpoint(client, monkeypatch):
     assert len(job["error"]) < 220  # bounded, safe message
     assert "finished_at" in job and "started_at" in job
     assert "boom-feed" not in m._ingesting  # slot released
+
+
+def test_stats_endpoint(client):
+    d = client.get("/stats").json()
+    assert d["registry"]["feeds"] > 1000 and d["registry"]["countries"] >= 70
+    assert d["ingested"]["cities"] >= 1
+    fixture = next(c for c in d["cities"] if c["feed"] == FID)
+    assert fixture["stops"] == 3 and fixture["routes"] == 1
+    assert d["ingested"]["stops"] >= 3
