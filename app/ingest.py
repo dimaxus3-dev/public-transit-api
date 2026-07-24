@@ -181,8 +181,9 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
 
 
 if __name__ == "__main__":
-    reg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "feeds.json")))
-    feed = next((f for f in reg["feeds"] if f["id"] == want), None)
+    from . import registry
+    feed = registry.load().get(want)
     if not feed:
-        raise SystemExit(f"feed '{want}' not found in feeds.json")
+        raise SystemExit(f"feed '{want}' not found in feeds.json / feeds_world.json "
+                         f"(run scripts/import_catalog.py to build the world registry)")
     ingest(feed)

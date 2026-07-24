@@ -63,12 +63,22 @@ def render(feed_id: str, out_path: str | None = None, clip_pct: int = 2) -> str:
 
     span_x = (hi_x - lo_x) or 1e-9
     span_y = (my_hi - my_lo) or 1e-9
-    H = int((W - 2 * PAD) * span_y / span_x) + 2 * PAD
-    H = max(400, min(1600, H))
+    # Fit the geo aspect into a max canvas WITHOUT distortion: tall cities get
+    # a narrower canvas, wide cities a shorter one — never squash either axis.
+    # Both axes must be in the same units: Mercator y is in radians, so the
+    # longitude span must be converted to radians too.
+    ratio = span_y / math.radians(span_x)
+    inner_w = W - 2 * PAD
+    inner_h = inner_w * ratio
+    if inner_h > 1520:
+        inner_h = 1520
+        inner_w = inner_h / ratio
+    canvas_w = int(inner_w + 2 * PAD)
+    H = int(inner_h + 2 * PAD)
 
     def xy(lon: float, lat: float) -> tuple[float, float]:
-        x = PAD + (lon - lo_x) / span_x * (W - 2 * PAD)
-        y = PAD + (my_hi - _mercator_y(lat)) / span_y * (H - 2 * PAD)
+        x = PAD + (lon - lo_x) / span_x * inner_w
+        y = PAD + (my_hi - _mercator_y(lat)) / span_y * inner_h
         return round(x, 1), round(y, 1)
 
     # draw longest lines first so short branches stay visible on top
@@ -103,15 +113,15 @@ def render(feed_id: str, out_path: str | None = None, clip_pct: int = 2) -> str:
 
     n_routes = len({f["properties"].get("route_id") for f in lines})
     modes = sorted({f["properties"].get("mode", "bus") for f in lines})
-    title = feed_id.replace("-", " ").title()
+    title = _feed_title(feed_id)
     label = f"{title} — {n_routes} routes · {len(stops)} stops · {', '.join(modes)}"
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
-<rect width="{W}" height="{H}" fill="{BG}" rx="12"/>
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {canvas_w} {H}" width="{canvas_w}" height="{H}">
+<rect width="{canvas_w}" height="{H}" fill="{BG}" rx="12"/>
 {chr(10).join(paths)}
 {chr(10).join(dots)}
 <text x="{PAD}" y="{H - 16}" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#8b949e">{label}</text>
-<text x="{W - PAD}" y="{H - 16}" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#484f58">rendered from GTFS by scripts/render_map.py</text>
+<text x="{canvas_w - PAD}" y="{H - 16}" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#484f58">rendered from GTFS by scripts/render_map.py</text>
 </svg>
 """
     out = out_path or os.path.join(os.path.dirname(__file__), "..", "docs", "maps", f"{feed_id}.svg")
@@ -120,6 +130,19 @@ def render(feed_id: str, out_path: str | None = None, clip_pct: int = 2) -> str:
         fh.write(svg)
     print(f"[{feed_id}] {len(paths)} lines, {len(dots)} stop dots -> {os.path.relpath(out)}")
     return out
+
+
+def _feed_title(feed_id: str) -> str:
+    """Human name from the feed registries, else the prettified id."""
+    root = os.path.join(os.path.dirname(__file__), "..")
+    for reg in ("feeds.json", "feeds_world.json"):
+        try:
+            for f in json.load(open(os.path.join(root, reg)))["feeds"]:
+                if f["id"] == feed_id:
+                    return f.get("city_region") or f.get("agency_provider") or feed_id
+        except FileNotFoundError:
+            pass
+    return feed_id.replace("-", " ").title()
 
 
 def _coords(feature) -> list:
