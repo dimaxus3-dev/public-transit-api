@@ -36,8 +36,8 @@ except ImportError:  # pragma: no cover
 
 from contextlib import asynccontextmanager
 
+from . import charging, gbfs, paths, realtime, registry, routing, schedule, store
 from . import ingest as ingest_mod
-from . import paths, realtime, registry, routing, schedule, store
 
 
 @asynccontextmanager
@@ -318,6 +318,79 @@ def stats():
         "ingested": {"cities": len(cities_out), **totals},
         "cities": cities_out,
     }
+
+
+# ── Shared mobility (GBFS): scooters, city bikes, mopeds ─────────────────────
+
+
+@app.get("/gbfs/systems")
+def gbfs_systems(
+    country: Optional[str] = Query(None, description="2-letter code, e.g. PL"),
+    q: Optional[str] = Query(None, description="search name/city"),
+    limit: int = Query(100, le=2000),
+):
+    """Browse the keyless GBFS registry (scooter/bike-share systems worldwide,
+    imported from the official MobilityData catalog)."""
+    ql = (q or "").lower()
+    out = []
+    for s in gbfs.systems().values():
+        if country and s["country"] != country.upper():
+            continue
+        if ql and ql not in f"{s['name']} {s['location']}".lower():
+            continue
+        out.append(s)
+    out.sort(key=lambda s: (s["country"], s["location"]))
+    return {"total": len(out), "systems": out[:limit]}
+
+
+@app.get("/gbfs/{system_id}")
+def gbfs_snapshot(system_id: str):
+    """Live snapshot of one sharing system: docked stations with availability
+    and/or dockless vehicles with battery level — straight from the operator's
+    GBFS feed (15 s cache, outage backoff)."""
+    try:
+        snap = gbfs.snapshot(system_id)
+    except KeyError:
+        raise HTTPException(404, f"unknown GBFS system '{system_id}' — see /gbfs/systems") from None
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"GBFS feed unavailable: {e}") from None
+    snap["counts"] = {"stations": len(snap["stations"]), "vehicles": len(snap["vehicles"])}
+    return snap
+
+
+# ── EV charging (Open Charge Map / NREL, free keys) ──────────────────────────
+
+
+@app.get("/charging/nearby")
+def charging_nearby(
+    lat: float = Query(...),
+    lng: float = Query(...),
+    radius_km: float = Query(5, ge=0.1, le=100),
+    limit: int = Query(25, le=100),
+    provider: str = Query("auto", pattern="^(auto|ocm|nrel)$"),
+):
+    """EV charging stations around a point. Uses Open Charge Map (global) or
+    NREL (North America) — both free, key-gated: set OCM_API_KEY and/or
+    NREL_API_KEY. OCM responses carry the required CC BY 4.0 attribution."""
+    avail = charging.available()
+    if provider == "auto":
+        provider = "ocm" if avail["ocm"] else ("nrel" if avail["nrel"] else "")
+    if provider == "ocm" and not avail["ocm"]:
+        provider = ""
+    if provider == "nrel" and not avail["nrel"]:
+        provider = ""
+    if not provider:
+        raise HTTPException(
+            503,
+            "no charging provider configured — set OCM_API_KEY (free: "
+            "openchargemap.org → my apps) and/or NREL_API_KEY (free: api.data.gov); "
+            "see docs/MICROMOBILITY.md",
+        )
+    try:
+        fn = charging.ocm_nearby if provider == "ocm" else charging.nrel_nearby
+        return fn(lat, lng, radius_km, limit)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"charging provider error: {e}") from None
 
 
 @app.get("/countries")

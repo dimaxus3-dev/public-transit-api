@@ -532,3 +532,114 @@ def test_stats_endpoint(client):
     fixture = next(c for c in d["cities"] if c["feed"] == FID)
     assert fixture["stops"] == 3 and fixture["routes"] == 1
     assert d["ingested"]["stops"] >= 3
+
+
+# ── shared mobility (GBFS) & EV charging ─────────────────────────────────────
+
+
+def test_gbfs_registry_browse(client):
+    d = client.get("/gbfs/systems", params={"country": "PL"}).json()
+    assert d["total"] > 50
+    assert all(s["country"] == "PL" for s in d["systems"])
+    named = client.get("/gbfs/systems", params={"q": "szczecin"}).json()
+    assert any(s["system_id"] == "dott-szczecin" for s in named["systems"])
+    assert client.get("/gbfs/definitely-not-a-system").status_code == 404
+
+
+def test_gbfs_snapshot_parses_v2_feed(client, monkeypatch):
+    from app import gbfs
+
+    pages = {
+        "https://x/gbfs.json": {
+            "data": {
+                "en": {
+                    "feeds": [
+                        {"name": "station_information", "url": "https://x/si.json"},
+                        {"name": "station_status", "url": "https://x/ss.json"},
+                        {"name": "free_bike_status", "url": "https://x/fb.json"},
+                    ]
+                }
+            }
+        },
+        "https://x/si.json": {
+            "data": {
+                "stations": [
+                    {"station_id": "s1", "name": "Dock A", "lat": 50.0, "lon": 20.0, "capacity": 10}
+                ]
+            }
+        },
+        "https://x/ss.json": {
+            "data": {
+                "stations": [
+                    {"station_id": "s1", "num_bikes_available": 4, "num_docks_available": 6}
+                ]
+            }
+        },
+        "https://x/fb.json": {
+            "data": {
+                "bikes": [
+                    {
+                        "bike_id": "v1",
+                        "lat": 50.001,
+                        "lon": 20.001,
+                        "current_fuel_percent": 0.62,
+                        "current_range_meters": 12000,
+                    }
+                ]
+            }
+        },
+    }
+    monkeypatch.setitem(
+        gbfs.systems(),
+        "test-sys",
+        {
+            "system_id": "test-sys",
+            "name": "Test",
+            "location": "Testville",
+            "country": "PL",
+            "url": "https://x/gbfs.json",
+        },
+    )
+    monkeypatch.setattr(gbfs, "_get", lambda url, timeout=12: pages[url])
+    gbfs._cache.pop("test-sys", None)
+
+    snap = client.get("/gbfs/test-sys").json()
+    assert snap["counts"] == {"stations": 1, "vehicles": 1}
+    st = snap["stations"][0]
+    assert st["bikes_available"] == 4 and st["docks_available"] == 6
+    v = snap["vehicles"][0]
+    assert v["battery"] == 62 and v["range_m"] == 12000
+    gbfs._cache.pop("test-sys", None)
+
+
+def test_charging_requires_a_key_then_works(client, monkeypatch):
+    from app import charging
+
+    monkeypatch.setattr(charging, "OCM_KEY", "")
+    monkeypatch.setattr(charging, "NREL_KEY", "")
+    r = client.get("/charging/nearby", params={"lat": 52.52, "lng": 13.4})
+    assert r.status_code == 503 and "OCM_API_KEY" in r.json()["detail"]
+
+    monkeypatch.setattr(charging, "OCM_KEY", "test-key")
+    monkeypatch.setattr(
+        charging,
+        "_get",
+        lambda url, headers, timeout=20: [
+            {
+                "ID": 1,
+                "AddressInfo": {
+                    "Title": "Plaza",
+                    "Latitude": 52.5,
+                    "Longitude": 13.4,
+                    "Town": "Berlin",
+                },
+                "Connections": [{"ConnectionTypeID": 33, "PowerKW": 150, "Quantity": 2}],
+            }
+        ],
+    )
+    charging._cache.clear()
+    d = client.get("/charging/nearby", params={"lat": 52.52, "lng": 13.4}).json()
+    assert d["provider"] == "openchargemap"
+    assert "CC BY 4.0" in d["attribution"]
+    assert d["stations"][0]["max_kw"] == 150
+    charging._cache.clear()

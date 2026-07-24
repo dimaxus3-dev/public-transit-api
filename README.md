@@ -68,6 +68,8 @@ things you can actually build on:
 | "When's the next bus at this stop?" | A live departure board (with realtime delays where published) |
 | "How do I get from A to B?" | A door-to-door journey: walk → ride → transfer → ride → walk |
 | "Where are the vehicles right now?" | Live GTFS-RT positions, polled or streamed over SSE |
+| "Any scooters near me? Battery?" | Live GBFS: 1515 sharing systems worldwide, no keys |
+| "Where can I charge the EV?" | Open Charge Map / NREL stations around any point |
 
 No API keys, no external database, no paid services — one Python process.
 
@@ -231,6 +233,8 @@ response 263 ms. Catalog feeds that need a provider API key (e.g. Bay Area
 | `GET /journey` | **Plan A→B** — walk + rides + transfers, live delays |
 | `GET /vehicles/live?city=` | Live vehicle positions (GTFS-RT feeds) |
 | `GET /vehicles/stream?city=` | **SSE stream** of live vehicles — subscribe once, frames every 5 s |
+| `GET /gbfs/systems` · `/gbfs/{id}` | **Scooters & bike-share (GBFS)**: 1515 keyless systems, live vehicles with battery | 
+| `GET /charging/nearby` | **EV chargers** via Open Charge Map / NREL (free keys) — [guide](docs/MICROMOBILITY.md) |
 | `GET /metrics` | Prometheus text exposition (requests, latency, ingested feeds) |
 
 **Interactive Swagger docs at [`/docs`](http://localhost:8000/docs)**, raw
