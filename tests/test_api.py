@@ -156,3 +156,54 @@ def test_rate_limit_kicks_in(client, monkeypatch):
     assert 429 in codes
     monkeypatch.setattr(m, "_RATE", 120)
     m._hits.clear()
+
+
+def test_errors_are_rfc7807(client):
+    r = client.get("/routes", params={"city": "no-such-city"})
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/problem+json")
+    body = r.json()
+    assert body["status"] == 404 and "title" in body and "detail" in body
+    v = client.get("/journey", params={"city": FID})       # missing lat/lon
+    assert v.status_code == 422
+    assert v.headers["content-type"].startswith("application/problem+json")
+
+
+def test_metrics_exposition(client):
+    client.get("/health")
+    m = client.get("/metrics")
+    assert m.status_code == 200
+    text = m.text
+    assert "transit_requests_total" in text
+    assert 'path="/health"' in text
+    assert "transit_ingested_feeds" in text
+
+
+def test_vehicles_stream_rejects_feed_without_rt(client):
+    r = client.get("/vehicles/stream", params={"city": FID})
+    assert r.status_code == 404
+    assert r.json()["title"] == "Not Found"
+
+
+def test_python_sdk_against_test_app(client, monkeypatch):
+    import sys, os
+    sys.path.insert(0, os.path.join(ROOT, "clients", "python"))
+    import transit_client as tc
+
+    def fake_call(self, method, path, **params):
+        clean = {k: v for k, v in params.items() if v is not None}
+        fn = client.get if method == "GET" else client.post
+        r = fn(path, params=clean)
+        if r.status_code >= 400:
+            raise tc.TransitError(r.status_code, r.json())
+        return r.json()
+
+    monkeypatch.setattr(tc.TransitClient, "_call", fake_call)
+    t = tc.TransitClient()
+    assert FID in t.health()["ingested_feeds"]
+    assert t.routes(FID)[0]["route_id"] == "T1"
+    plan = t.journey(FID, 50.0, 20.0, 50.01, 20.01, time="2030-06-03T09:00:00")
+    assert plan["itineraries"]
+    with pytest.raises(tc.TransitError) as e:
+        t.routes("nope-city")
+    assert e.value.status == 404
