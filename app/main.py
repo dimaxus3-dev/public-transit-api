@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover
 
 from contextlib import asynccontextmanager
 
-from . import charging, gbfs, paths, realtime, registry, routing, schedule, store
+from . import charging, gbfs, intelligence, paths, realtime, registry, routing, schedule, store
 from . import ingest as ingest_mod
 
 
@@ -318,6 +318,27 @@ def stats():
         "ingested": {"cities": len(cities_out), **totals},
         "cities": cities_out,
     }
+
+
+# ── Transit Intelligence (analytics dashboard) ───────────────────────────────
+
+_DASHBOARD_HTML = os.path.join(os.path.dirname(__file__), "..", "static", "dashboard.html")
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard():
+    """The Transit Intelligence dashboard — a self-contained analytics UI."""
+    from fastapi.responses import FileResponse
+
+    return FileResponse(_DASHBOARD_HTML, media_type="text/html")
+
+
+@app.get("/dashboard/data")
+def dashboard_data():
+    """Aggregated analytics payload behind /dashboard: per-country coverage
+    scores, availability, deep-check funnel, network sizes, data quality and
+    latency distribution — all computed from the platform's own reports."""
+    return intelligence.build()
 
 
 # ── Shared mobility (GBFS): scooters, city bikes, mopeds ─────────────────────

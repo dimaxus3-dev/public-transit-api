@@ -643,3 +643,19 @@ def test_charging_requires_a_key_then_works(client, monkeypatch):
     assert "CC BY 4.0" in d["attribution"]
     assert d["stations"][0]["max_kw"] == 150
     charging._cache.clear()
+
+
+def test_dashboard_and_data(client):
+    page = client.get("/dashboard")
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+    assert "Transit Intelligence" in page.text
+
+    d = client.get("/dashboard/data").json()
+    assert d["kpi"]["feeds"] > 1000
+    assert d["kpi"]["countries"] > 40
+    assert 0 <= d["kpi"]["coverage_score"] <= 100
+    top = d["countries"][0]
+    assert {"country", "score", "tier", "coverage", "feeds", "alive"} <= set(top)
+    assert top["tier"] in ("Excellent", "Good", "Average", "Poor", "Critical")
+    assert d["quality"]["overall"] > 0 and d["latency_histogram"]

@@ -235,9 +235,13 @@ response 263 ms. Catalog feeds that need a provider API key (e.g. Bay Area
 | `GET /vehicles/stream?city=` | **SSE stream** of live vehicles — subscribe once, frames every 5 s |
 | `GET /gbfs/systems` · `/gbfs/{id}` | **Scooters & bike-share (GBFS)**: 1515 keyless systems, live vehicles with battery | 
 | `GET /charging/nearby` | **EV chargers** via Open Charge Map / NREL (free keys) — [guide](docs/MICROMOBILITY.md) |
+| `GET /dashboard` | **Transit Intelligence** — the analytics dashboard (coverage map, rankings, quality) |
+| `GET /dashboard/data` | The aggregated analytics payload behind the dashboard |
 | `GET /metrics` | Prometheus text exposition (requests, latency, ingested feeds) |
 
-**Interactive Swagger docs at [`/docs`](http://localhost:8000/docs)**, raw
+****📈 Transit Intelligence** at [`/dashboard`](http://localhost:8000/dashboard) — a built-in analytics module: interactive world coverage map with per-country drill-down, proprietary Coverage Score (0–100, Excellent→Critical), coverage ranking with filters and CSV/JSON export, data-quality rings, the end-to-end pipeline funnel, latency distribution, global search (`/`), dark/light theme — self-contained, zero external assets, fed entirely by the platform's own reports.
+
+Interactive Swagger docs at [`/docs`](http://localhost:8000/docs)**, raw
 schema at `/openapi.json`. All errors are **RFC 7807** `application/problem+json`
 (`{"type", "title", "status", "detail", "instance"}`) — never a raw 500.
 
