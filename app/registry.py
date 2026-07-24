@@ -18,8 +18,12 @@ def load() -> dict[str, dict]:
     feeds: dict[str, dict] = {}
     world_path = registry_file("feeds_world.json")
     if os.path.exists(world_path):
-        for f in json.load(open(world_path))["feeds"]:
+        with open(world_path, encoding="utf-8") as fh:
+            world = json.load(fh)
+        for f in world["feeds"]:
             feeds[f["id"]] = f
-    for f in json.load(open(registry_file("feeds.json")))["feeds"]:
+    with open(registry_file("feeds.json"), encoding="utf-8") as fh:
+        curated = json.load(fh)
+    for f in curated["feeds"]:
         feeds[f["id"]] = f  # curated overrides world
     return feeds

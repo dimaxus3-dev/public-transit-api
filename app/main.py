@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover
 from contextlib import asynccontextmanager
 
 from . import ingest as ingest_mod
-from . import realtime, registry, routing, schedule, store
+from . import paths, realtime, registry, routing, schedule, store
 
 
 @asynccontextmanager
@@ -611,7 +611,8 @@ def _feed_timezone(city: str) -> Optional[str]:
         return tz
     try:
         with open(
-            os.path.join(os.path.dirname(__file__), "..", "data", city, "summary.json")
+            os.path.join(paths.DATA_DIR, city, "summary.json"),
+            encoding="utf-8",
         ) as fh:
             return json.load(fh).get("timezone")
     except Exception:  # noqa: BLE001
