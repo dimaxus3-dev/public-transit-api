@@ -18,7 +18,7 @@ GTFS-Realtime. No API keys. No database. Artifacts are flat files.
 </p>
 
 > **Public transport only** — city trams, buses, metro, urban & national rail.
-> Verified live **2026-07-22**. Re-check any time:
+> Verified live **2026-07-24**. Re-check any time:
 > `python3 scripts/feeds_status.py`.
 
 <p align="center">
@@ -47,33 +47,37 @@ python3 scripts/render_map.py <feed-id>      # re-draw any ingested city
 ## 🚦 Curated feed status — what works & what doesn't
 
 GTFS feeds are the *only* external dependency here, so "checking the APIs"
-means checking the feeds. The 18 hand-verified feeds below are live-checked with
-[`scripts/feeds_status.py`](scripts/feeds_status.py); the 1484-feed world
-catalog is covered in the **Coverage** section below.
+means checking the feeds. Every row below is a **real measurement** (HTTP code,
+response latency, feed size) taken with
+[`scripts/feeds_status.py`](scripts/feeds_status.py) on **2026-07-24**; the
+1484-feed world catalog is covered in the **Coverage** section below.
 ✅ = HTTP 200 · ➖ = needs a provider key · ❌ = down.
 
-| City | Country | Static GTFS | Realtime | Status |
-|---|---|---|:---:|:---:|
-| **Szczecin** (ZDiTM) | 🇵🇱 PL | 3.9 MB | 📡 vehicles + trips + alerts | ✅ |
-| **Warszawa** (ZTM) | 🇵🇱 PL | 100 MB | — | ✅ |
-| **GZM / Katowice** (Silesia) | 🇵🇱 PL | 44 MB | — | ✅ |
-| **Bydgoszcz** | 🇵🇱 PL | 2.5 MB | — | ✅ |
-| **Toruń** | 🇵🇱 PL | 2.0 MB | — | ✅ |
-| **Rzeszów** | 🇵🇱 PL | 3.9 MB | — | ✅ |
-| **Lublin** | 🇵🇱 PL | 5.6 MB | — | ✅ |
-| **Radom** | 🇵🇱 PL | 2.4 MB | — | ✅ |
-| **Kielce** | 🇵🇱 PL | 7.9 MB | — | ✅ |
-| **PKP** (national rail) | 🇵🇱 PL | 28 MB | — | ✅ |
-| **Berlin / Brandenburg** (VBB) | 🇩🇪 DE | 75 MB | — | ✅ |
-| **DB long-distance** | 🇩🇪 DE | 0.4 MB | — | ✅ |
-| **DB regional rail** | 🇩🇪 DE | 10 MB | — | ✅ |
-| **New York City Subway** (MTA) | 🇺🇸 US | 5.6 MB | — | ✅ |
-| **Boston** (MBTA) | 🇺🇸 US | 18 MB | — | ✅ |
-| **Portland, OR** (TriMet) | 🇺🇸 US | 38 MB | — | ✅ |
-| **Chicago** (CTA) | 🇺🇸 US | 68 MB | — | ✅ |
-| **Bay Area** (511) | 🇺🇸 US | — | — | ➖ needs 511 key |
+| City | Country | HTTP | Latency | Size | Realtime | Status |
+|---|---|:---:|---:|---:|:---:|:---:|
+| **Szczecin** (ZDiTM) | 🇵🇱 PL | 200 | 985 ms | 3.9 MB | 📡 vehicles 200 · trips 200 · alerts 200 | ✅ |
+| **Warszawa** (ZTM) | 🇵🇱 PL | 200 | 829 ms | 97.5 MB | — | ✅ |
+| **GZM / Katowice** (Silesia) | 🇵🇱 PL | 200 | 749 ms | 44.2 MB | — | ✅ |
+| **Bydgoszcz** | 🇵🇱 PL | 200 | 742 ms | 2.5 MB | — | ✅ |
+| **Toruń** | 🇵🇱 PL | 200 | 817 ms | 2.0 MB | — | ✅ |
+| **Rzeszów** | 🇵🇱 PL | 200 | 722 ms | 3.9 MB | — | ✅ |
+| **Lublin** | 🇵🇱 PL | 200 | 877 ms | 5.6 MB | — | ✅ |
+| **Radom** | 🇵🇱 PL | 200 | 1027 ms | 2.4 MB | — | ✅ |
+| **Kielce** | 🇵🇱 PL | 200 | 734 ms | 7.9 MB | — | ✅ |
+| **PKP** (national rail) | 🇵🇱 PL | 200 | 730 ms | 28.4 MB | — | ✅ |
+| **Berlin / Brandenburg** (VBB) | 🇩🇪 DE | 200 | 2011 ms | 75.3 MB | — | ✅ |
+| **DB long-distance** | 🇩🇪 DE | 200 | 2275 ms | 0.4 MB | — | ✅ |
+| **DB regional rail** | 🇩🇪 DE | 200 | 721 ms | 10.4 MB | — | ✅ |
+| **New York City Subway** (MTA) | 🇺🇸 US | 200 | 398 ms | 5.6 MB | — | ✅ |
+| **Boston** (MBTA) | 🇺🇸 US | 200 | 144 ms | 18.1 MB | — | ✅ |
+| **Portland, OR** (TriMet) | 🇺🇸 US | 200 | 257 ms | 38.3 MB | — | ✅ |
+| **Chicago** (CTA) | 🇺🇸 US | 200 | 675 ms | 67.9 MB | — | ✅ |
+| **Bay Area** (511) | 🇺🇸 US | — | — | — | — | ➖ needs free 511 key |
 
-**17 / 18 feeds live · 3 countries · 15 cities + 3 rail networks.**
+**17 / 18 static feeds live · Szczecin realtime: all 3 GTFS-RT endpoints
+answering** (vehicles 17 KB, trip updates 84 KB, alerts 2 KB protobuf —
+fetched in under a second each). The only non-live entry needs a free
+provider key, not a fix.
 
 ```bash
 python3 scripts/feeds_status.py     # prints this table, live, per city
@@ -113,7 +117,7 @@ python -m app.ingest mdb-648                 # Vienna — the map above
 python -m app.ingest mdb-1063                # Venice vaporetti
 ```
 
-<sub>Sample health at import time: 28/30 random feeds reachable (93 %).
+<sub>Sample health, re-verified 2026-07-24: 58/60 random feeds reachable (97 %).
 Catalog feeds that need a provider API key (e.g. Bay Area 511) are excluded
 from `feeds_world.json` by design.</sub>
 
