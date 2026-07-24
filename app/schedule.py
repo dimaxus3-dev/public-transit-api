@@ -128,6 +128,8 @@ def departures(feed_id: str, stop_id: str, at: dt.datetime | None = None,
         else:
             # next-day early departures only (avoid double-counting today's >24h trips)
             where, bounds = "AND st.dep_sec < 86400", []
+        # NB: bind from the `direction` PARAMETER — the row loop below must not
+        # shadow it, or the second day's query gets a stray binding.
         dir_bind = [direction] if direction is not None else []
         rows = db.execute(f"""
             SELECT st.dep_sec, r.short_name, t.headsign, r.mode, r.color, t.direction, st.trip_id
@@ -138,7 +140,7 @@ def departures(feed_id: str, stop_id: str, at: dt.datetime | None = None,
             ORDER BY st.dep_sec
             LIMIT ?
         """, [*sids, *svc, *bounds, *dir_bind, limit - len(out)])
-        for dep_sec, short, head, mode, color, direction, trip_id in rows:
+        for dep_sec, short, head, mode, color, trip_direction, trip_id in rows:
             # Live: shift the scheduled time by the trip's realtime delay when
             # today's trip is actually being tracked right now.
             live = day_offset == 0 and trip_id in delays
@@ -148,7 +150,7 @@ def departures(feed_id: str, stop_id: str, at: dt.datetime | None = None,
             eta_min = ((eff - now_sec) // 60) if day_offset == 0 else None
             out.append({
                 "route": short, "headsign": head, "mode": mode, "color": color,
-                "direction": direction,
+                "direction": trip_direction,
                 "time": f"{hh:02d}:{mm:02d}",
                 "in_minutes": eta_min if (eta_min is not None and eta_min >= 0) else None,
                 "day_offset": day_offset,

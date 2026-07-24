@@ -12,9 +12,14 @@ These are immutable per feed version and are what the API serves. PostGIS is the
 scale-path upgrade (swap store.py); the pipeline stays the same.
 """
 from __future__ import annotations
-import csv, io, json, os, sys, zipfile, collections, sqlite3, urllib.request
+import csv, io, json, os, shutil, sys, zipfile, collections, sqlite3, urllib.request
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+
+# Resource limits — a hostile or broken feed must not exhaust the host.
+MAX_ZIP_MB = int(os.environ.get("INGEST_MAX_ZIP_MB", "250"))
+MAX_UNPACKED_MB = int(os.environ.get("INGEST_MAX_UNPACKED_MB", "2500"))
+MAX_STOP_TIMES = int(os.environ.get("INGEST_MAX_STOP_TIMES", "8000000"))
 MODE_BY_ROUTE_TYPE = {
     "0": "tram", "1": "metro", "2": "rail", "3": "bus",
     "4": "ferry", "5": "cable_tram", "6": "aerial", "7": "funicular",
@@ -23,9 +28,40 @@ MODE_BY_ROUTE_TYPE = {
 
 
 def _download(url: str, dest: str) -> None:
-    req = urllib.request.Request(url, headers={"User-Agent": "transit-backend/0.1"})
-    with urllib.request.urlopen(req, timeout=90) as r, open(dest, "wb") as f:
-        f.write(r.read())
+    """Streamed download with a hard size cap — never buffers a feed in RAM
+    and aborts (removing the partial file) the moment the cap is exceeded."""
+    cap = MAX_ZIP_MB * 1_000_000
+    req = urllib.request.Request(url, headers={"User-Agent": "public-transit-api/1.0"})
+    got = 0
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r, open(dest, "wb") as f:
+            while True:
+                chunk = r.read(1 << 20)
+                if not chunk:
+                    break
+                got += len(chunk)
+                if got > cap:
+                    raise ValueError(f"zip exceeds {MAX_ZIP_MB} MB limit")
+                f.write(chunk)
+    except Exception:
+        if os.path.exists(dest):
+            os.remove(dest)
+        raise
+
+
+def _validate_zip(z: zipfile.ZipFile) -> None:
+    """Reject hostile or oversized archives before any parsing happens."""
+    total = 0
+    for info in z.infolist():
+        name = info.filename
+        if name.startswith(("/", "\\")) or ".." in name.split("/"):
+            raise ValueError(f"suspicious zip entry: {name!r}")
+        total += info.file_size
+        if total > MAX_UNPACKED_MB * 1_000_000:
+            raise ValueError(f"unpacked size exceeds {MAX_UNPACKED_MB} MB limit")
+    for required in ("routes.txt", "trips.txt", "stops.txt", "stop_times.txt"):
+        if required not in z.namelist():
+            raise ValueError(f"not a GTFS feed: missing {required}")
 
 
 def _rows(z: zipfile.ZipFile, name: str):
@@ -35,22 +71,48 @@ def _rows(z: zipfile.ZipFile, name: str):
 
 
 def ingest(feed: dict) -> dict:
-    """Ingest one feed dict from feeds.json. Returns a summary."""
+    """Ingest one feed dict from feeds.json. Returns a summary.
+
+    Atomic: everything is built in `data/.build-<id>` and swapped into
+    `data/<id>` only after the whole pipeline (download → validate → parse →
+    schedule DB → summary) succeeds — a crash mid-way can never leave a
+    half-written feed behind, and re-ingesting an existing feed replaces it
+    in one rename."""
     fid = feed["id"]
-    out = os.path.join(DATA_DIR, fid)
+    final = os.path.join(DATA_DIR, fid)
+    out = os.path.join(DATA_DIR, f".build-{fid}")
+    shutil.rmtree(out, ignore_errors=True)
     os.makedirs(out, exist_ok=True)
+    try:
+        summary = _ingest_into(feed, fid, final, out)
+    except Exception:
+        shutil.rmtree(out, ignore_errors=True)
+        raise
+    old = os.path.join(DATA_DIR, f".old-{fid}")
+    shutil.rmtree(old, ignore_errors=True)
+    if os.path.exists(final):
+        os.rename(final, old)
+    os.rename(out, final)
+    shutil.rmtree(old, ignore_errors=True)
+    return summary
+
+
+def _ingest_into(feed: dict, fid: str, final: str, out: str) -> dict:
     zip_path = os.path.join(out, "gtfs.zip")
+    cached_zip = os.path.join(final, "gtfs.zip")
 
     url = feed.get("gtfs_static_url", "")
     if not url or url.startswith("unverified"):
         raise SystemExit(f"[{fid}] no verified gtfs_static_url — skipping")
-    if os.path.exists(zip_path) and os.environ.get("REUSE_ZIP") == "1":
-        print(f"[{fid}] reusing cached {zip_path}")
+    if os.path.exists(cached_zip) and os.environ.get("REUSE_ZIP") == "1":
+        print(f"[{fid}] reusing cached {cached_zip}")
+        shutil.copyfile(cached_zip, zip_path)
     else:
         print(f"[{fid}] downloading {url}")
         _download(url, zip_path)
 
     z = zipfile.ZipFile(zip_path)
+    _validate_zip(z)
     routes = {r["route_id"]: r for r in _rows(z, "routes.txt")}
     trips = _rows(z, "trips.txt")
     stops = _rows(z, "stops.txt")
@@ -112,8 +174,15 @@ def ingest(feed: dict) -> dict:
     # Schedule DB (stop_times indexed by stop) powers /departures & "My Stop".
     build_schedule_db(z, os.path.join(out, "gtfs.sqlite"), routes)
 
+    # Feed's own timezone from agency.txt — GTFS times are local wall-clock,
+    # so departures/journeys must never fall back to the server's clock.
+    agencies = _rows(z, "agency.txt")
+    tz = next((a.get("agency_timezone", "").strip() for a in agencies
+               if a.get("agency_timezone", "").strip()), None)
+
     summary = {"feed": fid, "routes": len(routes), "trips": len(trips),
-               "shapes": len(shapes), "line_features": len(features), "stops": len(stop_list)}
+               "shapes": len(shapes), "line_features": len(features),
+               "stops": len(stop_list), "timezone": tz}
     with open(os.path.join(out, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     print(f"[{fid}] {summary}")
@@ -162,6 +231,8 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
         if sec is None:
             continue
         st_rows.append((st["trip_id"], st["stop_id"], sec, int(st.get("stop_sequence", 0))))
+        if len(st_rows) > MAX_STOP_TIMES:
+            raise ValueError(f"stop_times.txt exceeds {MAX_STOP_TIMES} rows limit")
     c.executemany("INSERT INTO stop_times VALUES(?,?,?,?)", st_rows)
     c.executemany("INSERT INTO calendar VALUES(?,?,?,?,?,?,?,?,?,?)",
                   [(r["service_id"], int(r["monday"]), int(r["tuesday"]), int(r["wednesday"]),
