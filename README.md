@@ -18,8 +18,9 @@ GTFS-Realtime. No API keys. No database. Artifacts are flat files.
 </p>
 
 > **Public transport only** — city trams, buses, metro, urban & national rail.
-> Verified live **2026-07-24**. Re-check any time:
-> `python3 scripts/feeds_status.py`.
+> **📊 [Live status of every city →](docs/STATUS.md)** — all 1501 feeds
+> measured (HTTP · latency · size), refreshed weekly by CI.
+> Last full check **2026-07-24**: **1436/1501 alive (95 %), median 263 ms**.
 
 <p align="center">
   <img src="docs/maps/vienna.svg" width="100%" alt="Vienna — 694 routes drawn from the ingested GTFS: U-Bahn lines in their official colors over the bus and tram grid">
@@ -117,7 +118,16 @@ python -m app.ingest mdb-648                 # Vienna — the map above
 python -m app.ingest mdb-1063                # Venice vaporetti
 ```
 
-<sub>Sample health, re-verified 2026-07-24: 58/60 random feeds reachable (97 %).
+**📊 [Full status page](docs/STATUS.md)** — every one of the 1501 feeds
+measured individually (HTTP code, latency, size), grouped by country with
+per-country health and median latency. Rebuilt every Monday by a scheduled
+GitHub Action, and reproducible any time:
+
+```bash
+python3 scripts/check_all.py       # ~2 min on 80 threads, writes docs/STATUS.md
+```
+
+<sub>Full check 2026-07-24: 1436/1501 alive (95 %), median response 263 ms.
 Catalog feeds that need a provider API key (e.g. Bay Area 511) are excluded
 from `feeds_world.json` by design.</sub>
 

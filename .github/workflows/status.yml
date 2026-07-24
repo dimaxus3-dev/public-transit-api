@@ -1,0 +1,28 @@
+name: Weekly status page
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"          # every Monday 06:00 UTC
+  workflow_dispatch: {}           # allow manual runs from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check every feed and rebuild the status page
+        run: python3 scripts/check_all.py
+      - name: Commit refreshed status
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/STATUS.md docs/status.json
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "status: weekly live check of every feed"
+          git push
