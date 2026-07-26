@@ -236,9 +236,18 @@ def _time_to_sec(t: str) -> int | None:
         return None
 
 
+SCHEMA_VERSION = 2  # arrival/departure split + pickup/drop_off + route patterns
+
+
 def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
     """Compact SQLite for schedule queries: stop_times indexed by stop_id, plus
-    trips/routes/calendar so /departures can resolve active services + names."""
+    trips/routes/calendar so /departures can resolve active services + names.
+
+    Schema v2: stop_times keeps SEPARATE arrival_sec and departure_sec (a long
+    dwell must not shorten rides or legalize impossible transfers) plus
+    pickup_type / drop_off_type, and a `patterns` table groups trips by their
+    exact ordered stop sequence (branches, short-turns and express variants
+    stay distinguishable instead of collapsing into one canonical shape)."""
     if os.path.exists(db_path):
         os.remove(db_path)
     db = sqlite3.connect(db_path)
@@ -247,14 +256,22 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
         CREATE TABLE routes(route_id TEXT PRIMARY KEY, short_name TEXT,
                             long_name TEXT, mode TEXT, color TEXT);
         CREATE TABLE trips(trip_id TEXT PRIMARY KEY, route_id TEXT,
-                           service_id TEXT, headsign TEXT, direction TEXT);
-        CREATE TABLE stop_times(trip_id TEXT, stop_id TEXT, dep_sec INTEGER, seq INTEGER);
+                           service_id TEXT, headsign TEXT, direction TEXT,
+                           pattern_id TEXT);
+        CREATE TABLE stop_times(trip_id TEXT, stop_id TEXT,
+                                arrival_sec INTEGER, departure_sec INTEGER,
+                                stop_sequence INTEGER,
+                                pickup_type INTEGER, drop_off_type INTEGER);
+        CREATE TABLE patterns(pattern_id TEXT PRIMARY KEY, route_id TEXT,
+                              direction TEXT, headsign TEXT, shape_id TEXT,
+                              trip_count INTEGER, stops_json TEXT);
         CREATE TABLE calendar(service_id TEXT, mon INT, tue INT, wed INT, thu INT,
                               fri INT, sat INT, sun INT,
                               start_date TEXT, end_date TEXT);
         CREATE TABLE calendar_dates(service_id TEXT, date TEXT, exception_type INT);
         CREATE TABLE stops(stop_id TEXT PRIMARY KEY, name TEXT, lat REAL, lon REAL, parent TEXT);
     """)
+    c.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     for rid, r in routes.items():
         rtype = r.get("route_type", "3")
         color = r.get("route_color", "").strip()
@@ -271,8 +288,83 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
                 ("#" + color) if color else None,
             ),
         )
+    trips_rows = _rows(z, "trips.txt")
+
+    def _flag(v) -> int:
+        try:
+            return int(v or 0)
+        except ValueError:
+            return 0
+
+    st_rows = []
+    for st in _rows(z, "stop_times.txt"):
+        arr = _time_to_sec(st.get("arrival_time") or "")
+        dep = _time_to_sec(st.get("departure_time") or "")
+        if arr is None and dep is None:
+            continue
+        # GTFS allows either to be blank at timepoint-less stops — mirror them.
+        arr = arr if arr is not None else dep
+        dep = dep if dep is not None else arr
+        st_rows.append(
+            (
+                st["trip_id"],
+                st["stop_id"],
+                arr,
+                dep,
+                int(st.get("stop_sequence", 0)),
+                _flag(st.get("pickup_type")),
+                _flag(st.get("drop_off_type")),
+            )
+        )
+        if len(st_rows) > MAX_STOP_TIMES:
+            raise ValueError(f"stop_times.txt exceeds {MAX_STOP_TIMES} rows limit")
+    c.executemany("INSERT INTO stop_times VALUES(?,?,?,?,?,?,?)", st_rows)
+
+    # Route patterns: trips grouped by their exact ordered stop sequence.
+    seq_by_trip: dict[str, list] = {}
+    for tid, sid, _a, _d, seq, _p, _do in st_rows:
+        seq_by_trip.setdefault(tid, []).append((seq, sid))
+    import hashlib
+
+    pattern_of_trip: dict[str, str] = {}
+    patterns: dict[str, dict] = {}
+    for t in trips_rows:
+        tid = t["trip_id"]
+        stops_seq = tuple(sid for _, sid in sorted(seq_by_trip.get(tid, [])))
+        if not stops_seq:
+            continue
+        key = (t["route_id"], t.get("direction_id", "0"), stops_seq)
+        pid = "p" + hashlib.md5(repr(key).encode(), usedforsecurity=False).hexdigest()[:10]
+        pattern_of_trip[tid] = pid
+        p = patterns.get(pid)
+        if p:
+            p["trip_count"] += 1
+        else:
+            patterns[pid] = {
+                "route_id": t["route_id"],
+                "direction": t.get("direction_id", "0"),
+                "headsign": t.get("trip_headsign", ""),
+                "shape_id": t.get("shape_id", ""),
+                "trip_count": 1,
+                "stops": list(stops_seq),
+            }
     c.executemany(
-        "INSERT OR REPLACE INTO trips VALUES(?,?,?,?,?)",
+        "INSERT OR REPLACE INTO patterns VALUES(?,?,?,?,?,?,?)",
+        [
+            (
+                pid,
+                p["route_id"],
+                p["direction"],
+                p["headsign"],
+                p["shape_id"],
+                p["trip_count"],
+                json.dumps(p["stops"]),
+            )
+            for pid, p in patterns.items()
+        ],
+    )
+    c.executemany(
+        "INSERT OR REPLACE INTO trips VALUES(?,?,?,?,?,?)",
         [
             (
                 t["trip_id"],
@@ -280,19 +372,11 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
                 t.get("service_id", ""),
                 t.get("trip_headsign", ""),
                 t.get("direction_id", "0"),
+                pattern_of_trip.get(t["trip_id"], ""),
             )
-            for t in _rows(z, "trips.txt")
+            for t in trips_rows
         ],
     )
-    st_rows = []
-    for st in _rows(z, "stop_times.txt"):
-        sec = _time_to_sec(st.get("departure_time") or st.get("arrival_time") or "")
-        if sec is None:
-            continue
-        st_rows.append((st["trip_id"], st["stop_id"], sec, int(st.get("stop_sequence", 0))))
-        if len(st_rows) > MAX_STOP_TIMES:
-            raise ValueError(f"stop_times.txt exceeds {MAX_STOP_TIMES} rows limit")
-    c.executemany("INSERT INTO stop_times VALUES(?,?,?,?)", st_rows)
     c.executemany(
         "INSERT INTO calendar VALUES(?,?,?,?,?,?,?,?,?,?)",
         [
@@ -332,7 +416,8 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
             if s.get("stop_lat") and s.get("stop_lon")
         ],
     )
-    c.execute("CREATE INDEX idx_st_stop ON stop_times(stop_id, dep_sec)")
+    c.execute("CREATE INDEX idx_st_stop ON stop_times(stop_id, departure_sec)")
+    c.execute("CREATE INDEX idx_pat_route ON patterns(route_id, direction)")
     c.execute("CREATE INDEX idx_cd ON calendar_dates(date, service_id)")
     c.execute("CREATE INDEX idx_stop_parent ON stops(parent)")
     db.commit()
