@@ -38,6 +38,7 @@ from contextlib import asynccontextmanager
 
 from . import charging, gbfs, intelligence, paths, realtime, registry, routing, schedule, store
 from . import ingest as ingest_mod
+from .version import __version__
 
 
 @asynccontextmanager
@@ -49,7 +50,7 @@ async def _lifespan(_app):
 app = FastAPI(
     lifespan=_lifespan,
     title="City Transit API",
-    version="1.2.0",
+    version=__version__,
     description=(
         "Keyless GTFS backend for city public transport: map-ready route "
         "geometry, stops, departure boards, door-to-door journey planning and "
@@ -112,19 +113,29 @@ _ingesting: set = set()
 # Disable with PREWARM=0 (e.g. in tests or memory-tight environments).
 
 
+_prewarm_stats = {"warmed": 0, "duration_s": 0.0}
+
+
 def _prewarm_feeds() -> int:
+    """Warm caches sequentially (one feed at a time — bounded RAM/CPU), using
+    each feed's OWN local service date, optionally limited to PREWARM_FEEDS."""
+    t0 = time.time()
     warmed = 0
-    today = dt.datetime.now().strftime("%Y%m%d")
+    only = {f.strip() for f in os.environ.get("PREWARM_FEEDS", "").split(",") if f.strip()}
     for fid in store.available_feeds():
+        if only and fid not in only:
+            continue
         try:
             store.routes(fid)
             store.center(fid)
             routing._stops(fid)
             routing._footpaths(fid)
-            routing._day_connections(fid, today)
+            # a Chicago feed must warm Chicago's service day, not the server's
+            routing._day_connections(fid, _feed_now(fid).strftime("%Y%m%d"))
             warmed += 1
         except Exception:  # noqa: BLE001, S110 — a bad feed must not break startup
             pass
+    _prewarm_stats.update(warmed=warmed, duration_s=round(time.time() - t0, 2))
     return warmed
 
 
@@ -217,6 +228,12 @@ def metrics():
     L.append("# HELP transit_uptime_seconds Seconds since process start")
     L.append("# TYPE transit_uptime_seconds gauge")
     L.append(f"transit_uptime_seconds {time.time() - _started_at:.0f}")
+    L.append("# HELP transit_prewarm_duration_seconds Time the startup prewarm took")
+    L.append("# TYPE transit_prewarm_duration_seconds gauge")
+    L.append(f"transit_prewarm_duration_seconds {_prewarm_stats['duration_s']}")
+    L.append("# HELP transit_prewarm_feeds_warmed Feeds warmed at startup")
+    L.append("# TYPE transit_prewarm_feeds_warmed gauge")
+    L.append(f"transit_prewarm_feeds_warmed {_prewarm_stats['warmed']}")
     L.append("# HELP transit_ingested_feeds Number of ingested feeds")
     L.append("# TYPE transit_ingested_feeds gauge")
     L.append(f"transit_ingested_feeds {len(store.available_feeds())}")
@@ -561,6 +578,127 @@ def route_stops(city: str, route_id: str, direction: str = "0"):
     return schedule.route_stops(city, route_id, direction)
 
 
+@app.get("/routes/{city}/{route_id}/patterns")
+def route_patterns(city: str, route_id: str):
+    """Every service pattern of a route — branches, short-turns and express
+    variants are separate entries instead of collapsing into one canonical
+    shape. Sorted by trips/day, so [0] is the dominant variant."""
+    _require(city)
+    import sqlite3 as _sq
+
+    db = _sq.connect(os.path.join(paths.DATA_DIR, city, "gtfs.sqlite"))
+    try:
+        rows = db.execute(
+            "SELECT pattern_id, direction, headsign, shape_id, trip_count, stops_json "
+            "FROM patterns WHERE route_id = ? ORDER BY trip_count DESC",
+            (route_id,),
+        ).fetchall()
+    except _sq.OperationalError:
+        raise HTTPException(
+            409, f"feed '{city}' was ingested with an old schema — re-ingest it"
+        ) from None
+    finally:
+        db.close()
+    if not rows:
+        raise HTTPException(404, f"no patterns for route '{route_id}'")
+    return [
+        {
+            "pattern_id": pid,
+            "direction": d,
+            "headsign": h,
+            "shape_id": sh or None,
+            "trip_count": n,
+            "stop_count": len(json.loads(sj)),
+        }
+        for pid, d, h, sh, n, sj in rows
+    ]
+
+
+def _pattern(city: str, pattern_id: str) -> dict:
+    import sqlite3 as _sq
+
+    db = _sq.connect(os.path.join(paths.DATA_DIR, city, "gtfs.sqlite"))
+    try:
+        row = db.execute(
+            "SELECT route_id, direction, headsign, shape_id, trip_count, stops_json "
+            "FROM patterns WHERE pattern_id = ?",
+            (pattern_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, f"unknown pattern '{pattern_id}'")
+        stop_ids = json.loads(row[5])
+        ph = ",".join("?" * len(stop_ids))
+        coords = {
+            sid: (name, lat, lon)
+            for sid, name, lat, lon in db.execute(
+                f"SELECT stop_id, name, lat, lon FROM stops WHERE stop_id IN ({ph})", stop_ids
+            )
+        }
+    except _sq.OperationalError:
+        raise HTTPException(
+            409, f"feed '{city}' was ingested with an old schema — re-ingest it"
+        ) from None
+    finally:
+        db.close()
+    return {
+        "pattern_id": pattern_id,
+        "route_id": row[0],
+        "direction": row[1],
+        "headsign": row[2],
+        "shape_id": row[3] or None,
+        "trip_count": row[4],
+        "stops": [
+            {"id": sid, "name": coords[sid][0], "lat": coords[sid][1], "lon": coords[sid][2]}
+            for sid in stop_ids
+            if sid in coords
+        ],
+    }
+
+
+@app.get("/patterns/{city}/{pattern_id}/stops")
+def pattern_stops(city: str, pattern_id: str):
+    """The exact ordered stop list of one pattern."""
+    _require(city)
+    return _pattern(city, pattern_id)
+
+
+@app.get("/patterns/{city}/{pattern_id}/geometry")
+def pattern_geometry(city: str, pattern_id: str):
+    """GeoJSON line for one pattern. Uses the route's real GTFS shape when this
+    pattern IS the canonical variant; otherwise falls back to the stop-to-stop
+    polyline (`geometry_source` says which you got)."""
+    _require(city)
+    p = _pattern(city, pattern_id)
+    fc = store.route_geometry(city, p["route_id"])
+    for feat in fc.get("features", []):
+        if feat["properties"].get("direction") == p["direction"]:
+            return JSONResponse(
+                {
+                    "type": "Feature",
+                    "properties": {
+                        **feat["properties"],
+                        "pattern_id": pattern_id,
+                        "geometry_source": "shape",
+                    },
+                    "geometry": feat["geometry"],
+                }
+            )
+    return JSONResponse(
+        {
+            "type": "Feature",
+            "properties": {
+                "pattern_id": pattern_id,
+                "route_id": p["route_id"],
+                "geometry_source": "stops",
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[st["lon"], st["lat"]] for st in p["stops"]],
+            },
+        }
+    )
+
+
 @app.get("/map/layers")
 def map_layers(city: str = Query(...)):
     """What the map should draw, and where to fetch it."""
@@ -620,9 +758,9 @@ def stop_departures(city: str, stop_id: str, limit: int = 15, direction: Optiona
     """Next departures at a stop — the "My Stop" board. Live where the realtime
     feed is tracking today's trip. Optional `direction` (0/1)."""
     _require(city)
-    delays = _trip_delays(city)
+    rt = _rt_states(city)
     return schedule.departures(
-        city, stop_id, at=_feed_now(city), limit=limit, direction=direction, delays=delays
+        city, stop_id, at=_feed_now(city), limit=limit, direction=direction, rt=rt
     )
 
 
@@ -647,10 +785,11 @@ def journey(
             when = dt.datetime.fromisoformat(time)
         except ValueError:
             raise HTTPException(400, "bad `time` (want ISO 8601)") from None
+    delays, canceled = _trip_delays(city)
     return {
         "city": city,
         "itineraries": routing.plan(
-            city, from_lat, from_lon, to_lat, to_lon, when, _trip_delays(city)
+            city, from_lat, from_lon, to_lat, to_lon, when, delays, canceled
         ),
     }
 
@@ -722,15 +861,29 @@ def _rt_vehicles_url(city: str) -> Optional[str]:
     return _FEEDS.get(city, {}).get("gtfs_rt_vehicles_url")
 
 
-def _trip_delays(city: str) -> dict[str, int]:
-    """Live trip delays from the feed's GTFS-RT TripUpdate feed, or {} if none."""
+def _rt_states(city: str) -> dict:
+    """Full realtime state (per-stop delays, cancellations, skipped stops)
+    from the feed's GTFS-RT TripUpdate feed; empty state when none."""
     trips_url = _FEEDS.get(city, {}).get("gtfs_rt_trips_url")
     if not trips_url:
-        return {}
+        return {"timestamp": None, "trips": {}}
     try:
-        return realtime.trip_delays(city, trips_url)
-    except Exception:
-        return {}
+        return realtime.trip_states(city, trips_url)
+    except Exception:  # noqa: BLE001
+        return {"timestamp": None, "trips": {}}
+
+
+def _trip_delays(city: str) -> tuple[dict[str, int], set]:
+    """(delays, canceled) for the router, derived from the full RT state."""
+    rt = _rt_states(city)
+    delays: dict[str, int] = {}
+    canceled: set = set()
+    for tid, st in rt.get("trips", {}).items():
+        if st.get("status") == "canceled":
+            canceled.add(tid)
+        elif st.get("delay"):
+            delays[tid] = st["delay"]
+    return delays, canceled
 
 
 def _feed_timezone(city: str) -> Optional[str]:

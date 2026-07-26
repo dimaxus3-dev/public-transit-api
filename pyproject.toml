@@ -1,6 +1,6 @@
 [project]
 name = "public-transit-api"
-version = "1.0.0"
+version = "1.2.0"  # keep in sync with app/version.py (tested in CI)
 description = "Keyless FastAPI backend for public transport in 1500+ cities: GTFS → map geometry, departure boards, journey planning, live vehicles"
 readme = "README.md"
 requires-python = ">=3.9"

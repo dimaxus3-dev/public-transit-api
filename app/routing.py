@@ -99,20 +99,21 @@ def _day_connections(feed_id: str, date_key: str):
     ph = ",".join("?" * len(svc))
     rows = db.execute(
         f"""
-        SELECT st.trip_id, st.stop_id, st.dep_sec, st.seq,
+        SELECT st.trip_id, st.stop_id, st.arrival_sec, st.departure_sec,
+               st.stop_sequence, st.pickup_type, st.drop_off_type,
                r.short_name, r.mode, r.color, t.headsign
         FROM stop_times st
         JOIN trips t ON st.trip_id = t.trip_id
         JOIN routes r ON t.route_id = r.route_id
         WHERE t.service_id IN ({ph})
-        ORDER BY st.trip_id, st.seq
+        ORDER BY st.trip_id, st.stop_sequence
     """,
         list(svc),
     )
     trip_meta: dict[str, dict] = {}
     per_trip: dict[str, list] = {}
-    for tid, sid, dep, seq, short, mode, color, head in rows:
-        per_trip.setdefault(tid, []).append((seq, sid, dep))
+    for tid, sid, arr, dep, seq, pick, drop, short, mode, color, head in rows:
+        per_trip.setdefault(tid, []).append((seq, sid, arr, dep, pick, drop))
         if tid not in trip_meta:
             trip_meta[tid] = {
                 "route": short,
@@ -124,15 +125,28 @@ def _day_connections(feed_id: str, date_key: str):
     trip_stops: dict[str, list] = {}  # trip_id -> ordered [(seq, stop_id)]
     for tid, seq_rows in per_trip.items():
         seq_rows.sort()
-        trip_stops[tid] = [(seq, sid) for seq, sid, _ in seq_rows]
+        trip_stops[tid] = [(seq, sid) for seq, sid, *_ in seq_rows]
         for i in range(len(seq_rows) - 1):
-            _, s_stop, s_dep = seq_rows[i]
-            _, e_stop, e_dep = seq_rows[i + 1]
-            if e_dep < s_dep:  # guard against bad data
+            _, s_stop, _s_arr, s_dep, s_pick, _sd = seq_rows[i]
+            _, e_stop, e_arr, _e_dep, _ep, e_drop = seq_rows[i + 1]
+            if e_arr < s_dep:  # guard against bad data
                 continue
-            # store the alight seq so a ride leg can slice its own stop range
+            # A connection departs at the CURRENT stop's departure_sec and
+            # arrives at the NEXT stop's arrival_sec — dwell time at the far
+            # stop is not ride time and cannot legalize a tight transfer.
+            # Trailing pick/drop flags gate boarding/alighting in the scan.
             connections.append(
-                (s_dep, e_dep, s_stop, e_stop, tid, seq_rows[i][0], seq_rows[i + 1][0])
+                (
+                    s_dep,
+                    e_arr,
+                    s_stop,
+                    e_stop,
+                    tid,
+                    seq_rows[i][0],
+                    seq_rows[i + 1][0],
+                    s_pick,
+                    e_drop,
+                )
             )
     connections.sort(key=lambda c: c[0])
     db.close()
@@ -158,6 +172,7 @@ def plan(
     to_lon: float,
     depart_at: dt.datetime,
     delays: dict[str, int] | None = None,
+    canceled: set | None = None,
 ) -> list[dict]:
     """One earliest-arrival itinerary (with transfers) from origin to dest.
     Returns [] when unreachable.
@@ -165,8 +180,10 @@ def plan(
     `delays` (trip_id -> seconds) are applied to every connection's
     departure/arrival BEFORE the scan, so the router itself decides with live
     times: a transfer that a delay makes impossible is rejected, and a
-    delayed-but-now-faster alternative wins on merit."""
+    delayed-but-now-faster alternative wins on merit. Trips in `canceled`
+    (GTFS-RT schedule_relationship CANCELED) never enter the scan at all."""
     delays = delays or {}
+    canceled = canceled or set()
     stops = _stops(feed_id)
     starts = _nearby_stops(feed_id, from_lat, from_lon, MAX_ORIGIN_WALK)
     ends = dict(_nearby_stops(feed_id, to_lat, to_lon, MAX_ORIGIN_WALK))
@@ -176,13 +193,25 @@ def plan(
     connections, trip_meta, trip_stops = _day_connections(feed_id, depart_at.strftime("%Y%m%d"))
     if not connections:
         return []
+    if canceled:
+        connections = [c for c in connections if c[4] not in canceled]
     if delays:
         # Shift each delayed trip's connections and restore the scan order
         # (CSA requires connections sorted by departure time).
         connections = sorted(
             (
-                (dep + delays.get(tid, 0), arr + delays.get(tid, 0), fs, ts, tid, dseq, aseq)
-                for dep, arr, fs, ts, tid, dseq, aseq in connections
+                (
+                    dep + delays.get(tid, 0),
+                    arr + delays.get(tid, 0),
+                    fs,
+                    ts,
+                    tid,
+                    dseq,
+                    aseq,
+                    pick,
+                    drop,
+                )
+                for dep, arr, fs, ts, tid, dseq, aseq, pick, drop in connections
             ),
             key=lambda c: c[0],
         )
@@ -198,18 +227,32 @@ def plan(
         pointer[sid] = ("origin", wsec)
 
     best_end_arrival = INF
-    for c_idx, (c_dep, c_arr, c_from, c_to, c_trip, _c_dseq, _c_aseq) in enumerate(connections):
+    for c_idx, (
+        c_dep,
+        c_arr,
+        c_from,
+        c_to,
+        c_trip,
+        _c_dseq,
+        _c_aseq,
+        c_pick,
+        c_drop,
+    ) in enumerate(connections):
         if c_dep < dep_sec:
             continue
         if c_dep > best_end_arrival:  # nothing later can improve the target
             break
         boarded = c_trip in enter
-        if not boarded and arrival.get(c_from, INF) <= c_dep:
+        # pickup_type=1 means no boarding at this stop — you may ride through
+        # it, but you can't ENTER the trip here.
+        if not boarded and c_pick != 1 and arrival.get(c_from, INF) <= c_dep:
             enter[c_trip] = c_idx
             boarded = True
         if not boarded:
             continue
-        if c_arr < arrival.get(c_to, INF):
+        # drop_off_type=1 means no alighting — the ride continues, but this
+        # stop can't seed transfers or end the journey.
+        if c_drop != 1 and c_arr < arrival.get(c_to, INF):
             arrival[c_to] = c_arr
             pointer[c_to] = ("ride", c_idx)
             if c_to in ends:

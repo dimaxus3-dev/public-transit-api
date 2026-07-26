@@ -84,6 +84,17 @@ def _str(v: bytes) -> str:
 #   VehicleDescriptor.id = 1, .label = 2
 
 
+_OCCUPANCY = {
+    0: "empty",
+    1: "many_seats",
+    2: "few_seats",
+    3: "standing_room",
+    4: "crushed_standing",
+    5: "full",
+    6: "not_accepting_passengers",
+}
+
+
 def _decode_vehicles(pb: bytes) -> list[dict]:
     msg = _fields(pb)
     out: list[dict] = []
@@ -110,6 +121,9 @@ def _decode_vehicles(pb: bytes) -> list[dict]:
                 "timestamp": int.from_bytes(vp[5][0], "little")
                 if 5 in vp and isinstance(vp[5][0], (bytes, bytearray))
                 else (vp[5][0] if 5 in vp else None),
+                "occupancy": _OCCUPANCY.get(vp[9][0])
+                if 9 in vp and isinstance(vp[9][0], int)
+                else None,
             }
         )
     return out
@@ -210,6 +224,98 @@ def _signed(v: int) -> int:
 
 
 _delay_fail_at: dict[str, float] = {}
+_STATUS = {0: "scheduled", 1: "added", 2: "unscheduled", 3: "canceled"}
+
+
+def _decode_trip_states(pb: bytes) -> dict:
+    """Full TripUpdate decode → the internal realtime model:
+
+        {"timestamp": <feed header ts>, "trips": {trip_id: {
+            "status": scheduled|added|unscheduled|canceled,
+            "delay": <trip-level seconds>,
+            "stops": {stop_id: {"arr": s, "dep": s, "skipped": bool}}}}}
+
+    Field numbers per gtfs-realtime.proto: FeedMessage.header=1 (.timestamp=3),
+    entity=2; FeedEntity.trip_update=3; TripUpdate.trip=1 (.trip_id=1,
+    .schedule_relationship=4), .stop_time_update=2 (.stop_sequence=1,
+    .arrival=2, .departure=3, .stop_id=4, .schedule_relationship=5:SKIPPED=1),
+    .delay=5; StopTimeEvent.delay=1."""
+    msg = _fields(pb)
+    header = _fields(msg[1][0]) if 1 in msg else {}
+    ts = header.get(3, [None])[0]
+    trips: dict[str, dict] = {}
+    for eb in msg.get(2, []):
+        e = _fields(eb)
+        if 3 not in e:
+            continue
+        tu = _fields(e[3][0])
+        trip = _fields(tu[1][0]) if 1 in tu else {}
+        tid = _str(trip[1][0]) if 1 in trip else None
+        if not tid:
+            continue
+        sched_rel = trip.get(4, [0])[0]
+        state: dict = {
+            "status": _STATUS.get(sched_rel if isinstance(sched_rel, int) else 0, "scheduled"),
+            "delay": None,
+            "stops": {},
+        }
+        if 5 in tu and isinstance(tu[5][0], int):
+            state["delay"] = _signed(tu[5][0])
+        for stu_b in tu.get(2, []):
+            stu = _fields(stu_b)
+            sid = _str(stu[4][0]) if 4 in stu else None
+            if sid is None:
+                continue
+            upd = {"arr": None, "dep": None, "skipped": False}
+            if 5 in stu and isinstance(stu[5][0], int) and stu[5][0] == 1:
+                upd["skipped"] = True
+            for field, key in ((2, "arr"), (3, "dep")):
+                if field in stu:
+                    ev = _fields(stu[field][0])
+                    if 1 in ev and isinstance(ev[1][0], int):
+                        upd[key] = _signed(ev[1][0])
+            state["stops"][sid] = upd
+        if state["delay"] is None:
+            first = next(
+                (
+                    u["dep"] if u["dep"] is not None else u["arr"]
+                    for u in state["stops"].values()
+                    if not u["skipped"] and (u["dep"] is not None or u["arr"] is not None)
+                ),
+                None,
+            )
+            state["delay"] = first or 0
+        trips[tid] = state
+    return {"timestamp": ts if isinstance(ts, int) else None, "trips": trips}
+
+
+_STATE_CACHE: dict[str, tuple[float, dict]] = {}
+
+
+def trip_states(feed_id: str, rt_trips_url: str) -> dict:
+    """Full realtime state (cancellations, skipped stops, per-stop delays,
+    feed timestamp). Same cache/backoff discipline as trip_delays; returns
+    {"timestamp": None, "trips": {}} instead of ever raising."""
+    now = time.time()
+    hit = _STATE_CACHE.get(feed_id)
+    if hit and now - hit[0] < _TTL:
+        return hit[1]
+    if now - _delay_fail_at.get(feed_id, float("-inf")) < _FAIL_BACKOFF:
+        return hit[1] if hit else {"timestamp": None, "trips": {}}
+    try:
+        req = urllib.request.Request(rt_trips_url, headers={"User-Agent": "public-transit-api/1.0"})
+        with urllib.request.urlopen(req, timeout=6) as r:
+            pb = r.read()
+        _delay_fail_at.pop(feed_id, None)
+    except Exception:
+        _delay_fail_at[feed_id] = now
+        return hit[1] if hit else {"timestamp": None, "trips": {}}
+    try:
+        state = _decode_trip_states(pb)
+    except Exception:
+        state = {"timestamp": None, "trips": {}}
+    _STATE_CACHE[feed_id] = (now, state)
+    return state
 
 
 def trip_delays(feed_id: str, rt_trips_url: str) -> dict[str, int]:

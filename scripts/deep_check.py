@@ -59,7 +59,7 @@ def routable_smoke(fid: str) -> tuple[bool, str]:
         return False, "no schedule db"
     db = sqlite3.connect(db_path)
     row = db.execute("""
-        SELECT st.trip_id, MIN(st.seq), MAX(st.seq) FROM stop_times st
+        SELECT st.trip_id, MIN(st.stop_sequence), MAX(st.stop_sequence) FROM stop_times st
         GROUP BY st.trip_id HAVING COUNT(*) >= 3 LIMIT 1""").fetchone()
     if not row:
         db.close()
@@ -68,7 +68,7 @@ def routable_smoke(fid: str) -> tuple[bool, str]:
     pts = db.execute(
         """
         SELECT s.lat, s.lon FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id
-        WHERE st.trip_id = ? AND st.seq IN (?, ?) ORDER BY st.seq""",
+        WHERE st.trip_id = ? AND st.stop_sequence IN (?, ?) ORDER BY st.stop_sequence""",
         (trip_id, lo, hi),
     ).fetchall()
     db.close()

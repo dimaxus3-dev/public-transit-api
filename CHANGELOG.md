@@ -3,6 +3,40 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow SemVer.
 
+## [1.2.0] — 2026-07-25
+
+### Added
+- **Route patterns**: trips are grouped by exact ordered stop sequence at
+  ingest — branches, short-turns and express variants are first-class.
+  New endpoints: `GET /routes/{city}/{route_id}/patterns`,
+  `GET /patterns/{city}/{pattern_id}/stops`,
+  `GET /patterns/{city}/{pattern_id}/geometry`.
+- **Stop-level GTFS-Realtime**: full TripUpdate decoding — trip
+  cancellations, skipped stops, per-stop arrival/departure delays, feed
+  header timestamp; vehicle occupancy on `/vehicles/*`. Canceled trips
+  never appear on departure boards and never enter the journey planner.
+- `PREWARM_FEEDS` env to prewarm only chosen cities; prewarm duration
+  and warmed-feed gauges on `/metrics`.
+- `app/version.py` as the single version source (FastAPI, pyproject and
+  releases stay in sync; enforced by a test).
+
+### Changed
+- **Schedule schema v2** (`PRAGMA user_version=2`): `stop_times` now
+  stores separate `arrival_sec` / `departure_sec` plus `pickup_type` /
+  `drop_off_type`. Router connections are built as
+  `(current.departure_sec → next.arrival_sec)`, so long dwells no longer
+  shorten rides or legalize impossible transfers; no-boarding stops
+  can't start a leg, no-alighting stops can't end one or seed transfers.
+  **Re-ingest existing feeds after upgrading** (`python -m app.ingest
+  <id>` — cached zips are reused with `REUSE_ZIP=1`).
+- Prewarm uses each feed's OWN local service day (a Chicago feed warms
+  Chicago's date, not the server's).
+- Charging endpoints are now explicitly positioned as an optional
+  add-on module (keyless transit core stays the headline).
+
+### Fixed
+- Version drift between the FastAPI app, pyproject and the changelog.
+
 ## [1.0.1] — 2026-07-24
 
 ### Added
@@ -56,5 +90,6 @@ First stable release.
   variable); `/journey` returned HTTP 500 for feeds with expired
   calendars; leg timestamps double-counted realtime delays.
 
+[1.2.0]: https://github.com/dimaxus3-dev/public-transit-api/releases/tag/v1.2.0
 [1.0.1]: https://github.com/dimaxus3-dev/public-transit-api/releases/tag/v1.0.1
 [1.0.0]: https://github.com/dimaxus3-dev/public-transit-api/releases/tag/v1.0.0

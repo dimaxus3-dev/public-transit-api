@@ -123,12 +123,18 @@ def departures(
     at: dt.datetime | None = None,
     limit: int = 15,
     direction: str | None = None,
-    delays: dict[str, int] | None = None,
+    rt: dict | None = None,
 ) -> dict:
+    """Next departures at a stop.
+
+    `rt` is the realtime state from realtime.trip_states(): canceled trips are
+    HIDDEN, stops marked SKIPPED for a trip are hidden, and per-stop departure
+    delays win over the trip-level delay. Stops with pickup_type=1 (no
+    boarding) never appear on a departure board."""
     db = _db(feed_id)
     if not db:
         return {"stop_id": stop_id, "departures": [], "error": "feed not ingested"}
-    delays = delays or {}
+    trips_rt = (rt or {}).get("trips", {})
     at = at or dt.datetime.now()
     out: list[dict] = []
     dir_clause = "AND t.direction = ?" if direction is not None else ""
@@ -145,30 +151,44 @@ def departures(
         placeholders = ",".join("?" * len(svc))
         now_sec = at.hour * 3600 + at.minute * 60 + at.second
         if day_offset == 0:
-            where, bounds = "AND st.dep_sec >= ?", [now_sec]
+            where, bounds = "AND st.departure_sec >= ?", [now_sec]
         else:
             # next-day early departures only (avoid double-counting today's >24h trips)
-            where, bounds = "AND st.dep_sec < 86400", []
+            where, bounds = "AND st.departure_sec < 86400", []
         # NB: bind from the `direction` PARAMETER — the row loop below must not
         # shadow it, or the second day's query gets a stray binding.
         dir_bind = [direction] if direction is not None else []
         rows = db.execute(
             f"""
-            SELECT st.dep_sec, r.short_name, t.headsign, r.mode, r.color, t.direction, st.trip_id
+            SELECT st.departure_sec, r.short_name, t.headsign, r.mode, r.color,
+                   t.direction, st.trip_id, st.stop_id
             FROM stop_times st
             JOIN trips t ON st.trip_id = t.trip_id
             JOIN routes r ON t.route_id = r.route_id
-            WHERE st.stop_id IN ({sid_ph}) AND t.service_id IN ({placeholders}) {where} {dir_clause}
-            ORDER BY st.dep_sec
+            WHERE st.stop_id IN ({sid_ph}) AND t.service_id IN ({placeholders})
+              AND st.pickup_type != 1 {where} {dir_clause}
+            ORDER BY st.departure_sec
             LIMIT ?
         """,
-            [*sids, *svc, *bounds, *dir_bind, limit - len(out)],
+            [*sids, *svc, *bounds, *dir_bind, (limit - len(out)) * 2],
         )
-        for dep_sec, short, head, mode, color, trip_direction, trip_id in rows:
-            # Live: shift the scheduled time by the trip's realtime delay when
-            # today's trip is actually being tracked right now.
-            live = day_offset == 0 and trip_id in delays
-            delay = delays.get(trip_id, 0) if live else 0
+        for dep_sec, short, head, mode, color, trip_direction, trip_id, st_stop in rows:
+            state = trips_rt.get(trip_id) if day_offset == 0 else None
+            if state:
+                if state.get("status") == "canceled":
+                    continue  # canceled trips never shown
+                stop_upd = state.get("stops", {}).get(st_stop)
+                if stop_upd and stop_upd.get("skipped"):
+                    continue  # this stop is skipped today
+                if stop_upd and stop_upd.get("dep") is not None:
+                    delay = stop_upd["dep"]  # stop-level beats trip-level
+                elif stop_upd and stop_upd.get("arr") is not None:
+                    delay = stop_upd["arr"]
+                else:
+                    delay = state.get("delay", 0)
+                live = True
+            else:
+                live, delay = False, 0
             eff = dep_sec + delay
             hh, mm = (eff // 3600) % 24, (eff // 60) % 60
             eta_min = ((eff - now_sec) // 60) if day_offset == 0 else None
@@ -186,6 +206,8 @@ def departures(
                     "delay_sec": delay,
                 }
             )
+            if len(out) >= limit:
+                break
 
     return {
         "stop_id": stop_id,
@@ -214,9 +236,9 @@ def route_stops(feed_id: str, route_id: str, direction: str = "0") -> list[dict]
         return []
     rows = db.execute(
         """
-        SELECT s.stop_id, s.name, s.lat, s.lon, st.seq
+        SELECT s.stop_id, s.name, s.lat, s.lon, st.stop_sequence
         FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
-        WHERE st.trip_id = ? ORDER BY st.seq
+        WHERE st.trip_id = ? ORDER BY st.stop_sequence
     """,
         (trip[0],),
     )

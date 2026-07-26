@@ -12,6 +12,9 @@ structures is worse than declaring them unsupported.
 | `stops.txt` | ✅ Full | incl. `parent_station` (departure boards expand child platforms) |
 | `calendar.txt` + `calendar_dates.txt` | ✅ Full | additions and removals resolved per service day |
 | Times past midnight (`24:xx`, `25:xx`…) | ✅ Full | day-offset handling in boards and router |
+| Separate arrival/departure times (dwell) | ✅ Full | schema v2: connections ride `departure → arrival`; dwells can't shorten rides or fake transfers |
+| `pickup_type` / `drop_off_type` | ✅ Full | no-boarding stops hidden from boards & unenterable; no-alighting stops can't end a leg |
+| Route patterns (branches, short-turns, express) | ✅ Full | `/routes/{city}/{id}/patterns` + per-pattern stops/geometry |
 | `agency.txt` timezone | ✅ Full | captured at ingest; all times are feed-local |
 | `shapes.txt` | 🟡 Optional | best (longest) shape per route/direction; feeds without shapes still work (no line geometry) |
 | Route colors | ✅ Full | per-route, with sensible fallbacks |
@@ -27,10 +30,13 @@ structures is worse than declaring them unsupported.
 | Feed | Status | Notes |
 |---|:---:|---|
 | VehiclePositions | ✅ Supported | positions, bearing, label; joined with static route metadata |
-| TripUpdates | ✅ Supported | per-trip delay (trip-level or first stop-time event) feeds boards **and** the router |
+| TripUpdates | ✅ Supported | full decode: per-stop arrival/departure delays, trip-level delay, feed timestamp |
 | Alerts | 🟡 Partial | fetched/health-checked for curated feeds; not yet exposed via a public endpoint |
-| Trip cancellations (`schedule_relationship`) | ❌ Unsupported | cancelled trips still appear from static data — planned |
-| Per-stop delay propagation | 🟡 Partial | one representative delay per trip, not per stop |
+| Trip cancellations (`schedule_relationship`) | ✅ Supported | canceled trips hidden from boards and excluded from the router |
+| Skipped stops (STU `SKIPPED`) | ✅ Supported | hidden from that stop's board |
+| Added / unscheduled trips | 🟡 Partial | detected and exposed in the state model; not yet routed |
+| Per-stop delay propagation | ✅ Supported | boards use exact per-stop delays; router uses the trip-level shift |
+| Vehicle occupancy | ✅ Supported | `occupancy` on `/vehicles/*` (empty → full) |
 
 ## API stability
 

@@ -234,7 +234,7 @@ response 263 ms. Catalog feeds that need a provider API key (e.g. Bay Area
 | `GET /vehicles/live?city=` | Live vehicle positions (GTFS-RT feeds) |
 | `GET /vehicles/stream?city=` | **SSE stream** of live vehicles — subscribe once, frames every 5 s |
 | `GET /gbfs/systems` · `/gbfs/{id}` | **Scooters & bike-share (GBFS)**: 1515 keyless systems, live vehicles with battery | 
-| `GET /charging/nearby` | **EV chargers** via Open Charge Map / NREL (free keys) — [guide](docs/MICROMOBILITY.md) |
+| `GET /charging/nearby` | *Optional add-on:* EV chargers via OCM/NREL (free keys, off by default) — [guide](docs/MICROMOBILITY.md) |
 | `GET /dashboard` | **Transit Intelligence** — the analytics dashboard (coverage map, rankings, quality) |
 | `GET /dashboard/data` | The aggregated analytics payload behind the dashboard |
 | `GET /metrics` | Prometheus text exposition (requests, latency, ingested feeds) |

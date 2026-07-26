@@ -261,6 +261,7 @@ def test_delays_degrade_to_static_schedule(client, monkeypatch):
     monkeypatch.setitem(m._FEEDS, FID, {"id": FID, "gtfs_rt_trips_url": "http://rt.example/pb"})
     monkeypatch.setattr(realtime.urllib.request, "urlopen", dead_urlopen)
     realtime._DELAY_CACHE.pop(FID, None)
+    realtime._STATE_CACHE.pop(FID, None)
     realtime._delay_fail_at.pop(FID, None)
 
     for _ in range(3):
@@ -415,6 +416,7 @@ def transfer_feed(tmp_path_factory):
     stops_csv = (
         "stop_id,stop_name,stop_lat,stop_lon\n"
         "A,Alpha,50.0,20.0\nB,Bravo,50.03,20.0\nC,Charlie,50.06,20.0\n"
+        "D,Delta,50.03,20.04\n"
     )
     files = {
         "agency.txt": "agency_id,agency_name,agency_url,agency_timezone\n"
@@ -425,11 +427,12 @@ def transfer_feed(tmp_path_factory):
         "saturday,sunday,start_date,end_date\n"
         "daily,1,1,1,1,1,1,1,20200101,20351231\n",
         "trips.txt": "route_id,service_id,trip_id,direction_id\n"
-        "R1,daily,r1,0\nR2,daily,r2a,0\nR2,daily,r2b,0\n",
+        "R1,daily,r1,0\nR2,daily,r2a,0\nR2,daily,r2b,0\nR1,daily,r1branch,0\n",
         "stop_times.txt": "trip_id,stop_id,departure_time,stop_sequence\n"
         "r1,A,08:40:00,0\nr1,B,09:00:00,1\n"
         "r2a,B,09:10:00,0\nr2a,C,09:30:00,1\n"
-        "r2b,B,10:10:00,0\nr2b,C,10:30:00,1\n",
+        "r2b,B,10:10:00,0\nr2b,C,10:30:00,1\n"
+        "r1branch,A,23:00:00,0\nr1branch,B,23:20:00,1\nr1branch,D,23:30:00,2\n",
     }
     p = tmp_path_factory.mktemp("gtfs2") / "transfer.zip"
     p.write_bytes(_zip_of(files))
@@ -659,3 +662,160 @@ def test_dashboard_and_data(client):
     assert {"country", "score", "tier", "coverage", "feeds", "alive"} <= set(top)
     assert top["tier"] in ("Excellent", "Good", "Average", "Poor", "Critical")
     assert d["quality"]["overall"] > 0 and d["latency_histogram"]
+
+
+# ── schema v2: arrival/departure split, patterns, stop-level realtime ────────
+
+DWELL_FID = "test-dwell"
+
+
+@pytest.fixture(scope="session")
+def dwell_feed(tmp_path_factory):
+    """A→B→C where the vehicle DWELLS at B for 10 min (arr 09:00, dep 09:10),
+    and a connecting trip leaves B at 09:05 — legal only if the router knows
+    the true ARRIVAL time. Stop N (pickup_type=1) forbids boarding."""
+    files = {
+        "agency.txt": "agency_id,agency_name,agency_url,agency_timezone\n"
+        "ag,T,https://x,Europe/Warsaw\n",
+        "routes.txt": "route_id,route_short_name,route_type\nD1,D1,3\nD2,D2,3\n",
+        "stops.txt": "stop_id,stop_name,stop_lat,stop_lon\n"
+        "A,Alpha,50.0,20.0\nB,Bravo,50.03,20.0\nC,Charlie,50.06,20.0\n"
+        "E,Echo,50.06,20.04\nN,NoBoard,50.09,20.0\n",
+        "calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,"
+        "saturday,sunday,start_date,end_date\n"
+        "daily,1,1,1,1,1,1,1,20200101,20351231\n",
+        "trips.txt": "route_id,service_id,trip_id,direction_id\nD1,daily,d1,0\nD2,daily,d2,0\n",
+        "stop_times.txt": (
+            "trip_id,stop_id,arrival_time,departure_time,stop_sequence,pickup_type\n"
+            "d1,A,08:40:00,08:40:00,0,0\n"
+            "d1,B,09:00:00,09:10:00,1,0\n"  # 10-minute dwell
+            "d1,C,09:20:00,09:20:00,2,0\n"
+            "d1,N,09:40:00,09:40:00,3,1\n"  # no boarding here
+            "d2,B,09:05:00,09:05:00,0,0\n"  # legal ONLY via true arrival
+            "d2,E,09:15:00,09:15:00,1,0\n"
+        ),
+    }
+    p = tmp_path_factory.mktemp("gtfs3") / "dwell.zip"
+    p.write_bytes(_zip_of(files))
+    from app import ingest
+
+    ingest.ingest({"id": DWELL_FID, "gtfs_static_url": p.as_uri()})
+    yield
+    shutil.rmtree(os.path.join(ROOT, "data", DWELL_FID), ignore_errors=True)
+
+
+def test_dwell_time_ride_uses_true_arrival(dwell_feed):
+    import datetime as dt
+
+    from app import routing
+
+    routing._day_connections.cache_clear()
+    when = dt.datetime(2030, 6, 3, 8, 30)
+    # A -> C: must ARRIVE 09:20 (arrival_sec), dwell at B must not inflate it
+    it = routing.plan(DWELL_FID, 50.0, 20.0, 50.06, 20.0, when)[0]
+    assert it["arrive"].endswith("09:20")
+
+
+def test_dwell_time_transfer_uses_arrival_not_departure(dwell_feed):
+    import datetime as dt
+
+    from app import routing
+
+    # A -> E requires transferring at B onto the 09:05 — possible because d1
+    # ARRIVES 09:00 even though it departs B at 09:10.
+    when = dt.datetime(2030, 6, 3, 8, 30)
+    it = routing.plan(DWELL_FID, 50.0, 20.0, 50.06, 20.04, when)[0]
+    assert it["arrive"].endswith("09:15")
+    assert it["transfers"] == 1
+
+
+def test_pickup_type_stop_not_boardable(dwell_feed, client, monkeypatch):
+    import datetime as dt
+
+    from app import routing, schedule
+
+    # departure board at N hides the pickup_type=1 call…
+    board = schedule.departures(DWELL_FID, "N", at=dt.datetime(2030, 6, 3, 9, 0))
+    assert board["departures"] == []
+    # …and the router refuses to START a journey by boarding at N
+    when = dt.datetime(2030, 6, 3, 9, 30)
+    assert routing.plan(DWELL_FID, 50.09, 20.0, 50.0, 20.0, when) == []
+
+
+def test_canceled_trip_hidden_and_rerouted(transfer_feed, client, monkeypatch):
+    import datetime as dt
+
+    from app import routing, schedule
+
+    # /journey: canceling the 09:10 pushes the plan onto the 10:10
+    routing._day_connections.cache_clear()
+    when = dt.datetime(2030, 6, 3, 8, 30)
+    it = routing.plan(TRANSFER_FID, 50.0, 20.0, 50.06, 20.0, when, canceled={"r2a"})[0]
+    assert it["arrive"].endswith("10:30")
+
+    # /departures: canceled trip vanishes from the board
+    rt = {"timestamp": 111, "trips": {"r2a": {"status": "canceled", "delay": 0, "stops": {}}}}
+    board = schedule.departures(TRANSFER_FID, "B", at=dt.datetime(2030, 6, 3, 9, 0), rt=rt)
+    today = [d["time"] for d in board["departures"] if d["day_offset"] == 0]
+    assert "09:10" not in today and "10:10" in today
+    # tomorrow's run of the same trip is NOT canceled — it stays on the board
+    assert "09:10" in [d["time"] for d in board["departures"] if d["day_offset"] == 1]
+
+
+def test_skipped_stop_and_stop_level_delay(transfer_feed):
+    import datetime as dt
+
+    from app import schedule
+
+    at = dt.datetime(2030, 6, 3, 9, 0)
+    # SKIPPED: r2a doesn't call at B today
+    rt = {
+        "timestamp": 1,
+        "trips": {
+            "r2a": {
+                "status": "scheduled",
+                "delay": 0,
+                "stops": {"B": {"arr": None, "dep": None, "skipped": True}},
+            }
+        },
+    }
+    board = schedule.departures(TRANSFER_FID, "B", at=at, rt=rt)
+    assert "09:10" not in [d["time"] for d in board["departures"] if d["day_offset"] == 0]
+
+    # Per-stop departure delay (+300 s) beats the trip-level value
+    rt = {
+        "timestamp": 1,
+        "trips": {
+            "r2a": {
+                "status": "scheduled",
+                "delay": 60,
+                "stops": {"B": {"arr": 240, "dep": 300, "skipped": False}},
+            }
+        },
+    }
+    board = schedule.departures(TRANSFER_FID, "B", at=at, rt=rt)
+    row = next(d for d in board["departures"] if d["route"] == "2" and d["day_offset"] == 0)
+    assert row["time"] == "09:15" and row["delay_sec"] == 300 and row["live"]
+
+
+def test_route_patterns_endpoints(transfer_feed, client):
+    pats = client.get(f"/routes/{TRANSFER_FID}/R1/patterns").json()
+    assert len(pats) == 2  # main variant + branch
+    assert pats[0]["trip_count"] >= pats[1]["trip_count"]
+    branch = next(p for p in pats if p["stop_count"] == 3)
+    detail = client.get(f"/patterns/{TRANSFER_FID}/{branch['pattern_id']}/stops").json()
+    assert [st["id"] for st in detail["stops"]] == ["A", "B", "D"]
+    geo = client.get(f"/patterns/{TRANSFER_FID}/{branch['pattern_id']}/geometry").json()
+    assert geo["properties"]["geometry_source"] in ("shape", "stops")
+    assert len(geo["geometry"]["coordinates"]) >= 3
+    # R2: both trips share one pattern
+    pats2 = client.get(f"/routes/{TRANSFER_FID}/R2/patterns").json()
+    assert len(pats2) == 1 and pats2[0]["trip_count"] == 2
+
+
+def test_version_is_single_sourced(client):
+    from app.version import __version__
+
+    assert client.get("/openapi.json").json()["info"]["version"] == __version__
+    pyproject = open(os.path.join(ROOT, "pyproject.toml")).read()
+    assert f'version = "{__version__}"' in pyproject
