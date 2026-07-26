@@ -17,3 +17,6 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+
+# accidental nested clone
+/public-transit-api/
