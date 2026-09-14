@@ -8,6 +8,7 @@ positions/delays where a feed publishes GTFS-Realtime. No API keys, no
 database — artifacts are flat files.
 
     pip install -r requirements.txt
+    python -m app.ingest nyc-subway      # download + build artifacts
     uvicorn app.main:app --reload
 
 Optional hardening (all via environment variables, all off by default):
@@ -553,6 +554,7 @@ def ingest_status(feed_id: str):
 
 @app.get("/routes")
 def routes(
+    city: str = Query(..., description="feed id, e.g. nyc-subway"), mode: Optional[str] = None
 ):
     _require(city)
     rs = store.routes(city)
@@ -767,6 +769,7 @@ def stop_departures(city: str, stop_id: str, limit: int = 15, direction: Optiona
 
 @app.get("/journey")
 def journey(
+    city: str = Query(..., description="feed id, e.g. nyc-subway"),
     from_lat: float = Query(...),
     from_lon: float = Query(...),
     to_lat: float = Query(...),
@@ -792,6 +795,7 @@ def journey(
 
 
 @app.get("/vehicles/live")
+def vehicles_live(city: str = Query(..., description="feed id, e.g. nyc-subway")):
     """Live vehicle positions (moving map markers) for feeds that publish a
     GTFS-RT VehiclePosition feed. Each vehicle carries its line/mode/color
     (joined from the static GTFS) plus lat/lon and heading."""
@@ -812,6 +816,7 @@ async def vehicles_stream(
     """**Server-Sent Events** stream of live vehicle positions — subscribe once
     and receive a fresh frame every `interval` seconds; no polling code needed:
 
+        const es = new EventSource("/vehicles/stream?city=nyc-subway");
         es.onmessage = (e) => drawVehicles(JSON.parse(e.data));
 
     Each event's `data:` is the same JSON as GET /vehicles/live. Ends only when

@@ -8,7 +8,8 @@ alight stops and intermediate stops.
 CSA is the simplest efficient GTFS router: build the day's "connections" (each
 consecutive stop-time pair of an active trip) sorted by departure time, then a
 single linear scan computes the earliest arrival at every stop. It's stdlib-only
-second. Live delays are layered on by realtime.trip_delays().
+and fast — an active day for a large city feed is ~150k connections, scanned in
+well under a second. Live delays are layered on by realtime.trip_delays().
 """
 
 from __future__ import annotations

@@ -427,6 +427,7 @@ def build_schedule_db(z: zipfile.ZipFile, db_path: str, routes: dict) -> None:
 if __name__ == "__main__":
     from . import registry
 
+    want = sys.argv[1] if len(sys.argv) > 1 else "nyc-subway"
     feed = registry.load().get(want)
     if not feed:
         raise SystemExit(

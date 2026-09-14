@@ -7,6 +7,7 @@
         print(f["city"], "✅" if f["ingested"] else "·")
 
     t.ingest("mdb-648")                      # activate Vienna
+    plan = t.journey("nyc-subway", 53.428, 14.552, 53.44, 14.49)
     print(plan["itineraries"][0]["duration_min"], "min")
 
 stdlib only — copy this one file into your project and go.
@@ -95,6 +96,7 @@ class TransitClient:
     def vehicles_stream(self, city: str, interval: float = 5.0):
         """Yield one dict per SSE frame — an infinite generator:
 
+        for frame in t.vehicles_stream("nyc-subway"):
             print(frame["count"], "vehicles on the map")
         """
         url = f"{self.base}/vehicles/stream?" + urllib.parse.urlencode(

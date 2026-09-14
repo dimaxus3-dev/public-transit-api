@@ -29,8 +29,11 @@ python3 scripts/import_gbfs.py
 **Use it:**
 
 ```bash
+curl "localhost:8000/gbfs/systems?country=BE&q=brussels"
+# → dott-brussels (Dott Brussels)
 
-# → 108 stations + 884 vehicles, each with lat/lon, battery %, range
+curl "localhost:8000/gbfs/dott-brussels"
+# → stations + vehicles, each with lat/lon, battery %, range
 ```
 
 Snapshots are cached 15 s and back off a dead operator for 60 s (stale frame

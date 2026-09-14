@@ -34,7 +34,9 @@ GTFS-Realtime. No API keys. No external database server required — artifacts a
   No map tiles, no external services.
 </sub></p>
 
+| ![New York City Subway](docs/maps/nyc-subway.svg) | ![Vienna U-Bahn network](docs/maps/vienna.svg) |
 |:---:|:---:|
+| **NYC Subway** — every line in its official MTA color | **Vienna** — U-Bahn lines over the bus/tram grid |
 | ![Venice vaporetto network](docs/maps/venice.svg) | ![Kielce bus network](docs/maps/kielce.svg) |
 | **Venice** — vaporetto ferries: Canal Grande, Lido, Burano | **Kielce** — 56 bus routes, per-route feed colors |
 
@@ -84,18 +86,21 @@ curl "localhost:8000/stops/nearby?city=mdb-648&lat=48.208&lng=16.373&radius=500"
 **2. "My stop" departure widget** (home dashboard, e-ink display, Slack bot…)
 
 ```bash
+curl "localhost:8000/stops/<feed-id>/<stop-id>/departures?limit=5"
 # → route 12 tram in 7 min (live, +131 s delay), bus 101 in 0 min …
 ```
 
 **3. Door-to-door journey planner**
 
 ```bash
+curl "localhost:8000/journey?city=mdb-648&from_lat=48.19&from_lon=16.37&to_lat=48.21&to_lon=16.4"
 # → walk 6 min → tram 5 (12 stops, live −2 s) → walk 5 min, 31 min total
 ```
 
 **4. Live vehicles on a map** — one line of JS:
 
 ```js
+new EventSource("/vehicles/stream?city=mdb-648")
   .onmessage = e => drawMarkers(JSON.parse(e.data).vehicles);
 ```
 
@@ -134,8 +139,7 @@ response latency, feed size) taken with
 | **Chicago** (CTA) | 🇺🇸 US | 200 | 675 ms | 67.9 MB | — | ✅ |
 | **Bay Area** (511) | 🇺🇸 US | — | — | — | — | ➖ needs free 511 key |
 
-answering** (vehicles 17 KB, trip updates 84 KB, alerts 2 KB protobuf —
-fetched in under a second each). The only non-live entry needs a free
+**16 / 17 static feeds live.** The only non-live entry needs a free
 provider key, not a fix.
 
 ```bash
@@ -249,6 +253,8 @@ from transit_client import TransitClient
 
 t = TransitClient("http://localhost:8000")
 t.ingest("mdb-648")                                   # activate Vienna
+plan = t.journey("mdb-648", 53.428, 14.552, 53.44, 14.49)
+for frame in t.vehicles_stream("mdb-648"):     # live SSE frames
     print(frame["count"], "vehicles")
 ```
 
@@ -260,6 +266,7 @@ import { TransitClient } from "./transit-client.js";
 
 const t = new TransitClient("http://localhost:8000");
 const { feeds } = await t.feeds({ country: "IT" });
+t.vehiclesStream("mdb-648", f => drawMarkers(f.vehicles));
 ```
 
 ### 📈 Monitoring
@@ -286,11 +293,13 @@ snaps back to live the moment the feed recovers.
 
 ## 🧪 See it in action
 
+Example responses shaped like a live GTFS-RT-enabled instance (illustrative).
 
 **Plan a door-to-door journey** — walk → tram → walk, with the tram's *live*
 delay already applied:
 
 ```bash
+curl "localhost:8000/journey?city=<feed-id>&from_lat=48.19&from_lon=16.37&to_lat=48.21&to_lon=16.4"
 ```
 
 ```jsonc
@@ -300,12 +309,12 @@ delay already applied:
     "duration_min": 31, "transfers": 1, "walk_min": 8,
     "live": true,                       // ← realtime delays applied
     "legs": [
-      { "type": "walk", "to": "Plac Rodła", "seconds": 364 },
+      { "type": "walk", "to": "Main Square", "seconds": 364 },
       { "type": "ride", "mode": "tram", "route": "5", "color": "#005E85",
-        "headsign": "Osiedle Zawadzkiego",
-        "board": "Plac Rodła", "alight": "Krzekowo",
+        "headsign": "East District",
+        "board": "Main Square", "alight": "North Terminal",
         "delay_sec": -2, "live": true, "num_stops": 12,
-        "stops": [ { "name": "Plac Rodła", "lat": 53.4316, "lon": 14.5556 }, "…" ] },
+        "stops": [ { "name": "Main Square", "lat": 48.2082, "lon": 16.3738 }, "…" ] },
       { "type": "walk", "to": "Destination", "seconds": 297 }
     ]
   }]
@@ -315,11 +324,12 @@ delay already applied:
 **"My Stop" departure board** — next departures with per-vehicle delays:
 
 ```bash
+curl "localhost:8000/stops/<feed-id>/<stop-id>/departures?limit=3"
 ```
 
 ```jsonc
 {
-  "stop_name": "Plac Rodła",
+  "stop_name": "Main Square",
   "departures": [
     { "route": "101", "mode": "bus",  "time": "20:41", "in_minutes": 0, "live": true,  "delay_sec": 25  },
     { "route": "12",  "mode": "tram", "time": "20:48", "in_minutes": 7, "live": true,  "delay_sec": 131 },
@@ -331,12 +341,13 @@ delay already applied:
 **Live vehicle positions** — 166 vehicles on the map at query time:
 
 ```bash
+curl "localhost:8000/vehicles/live?city=<feed-id>"
 ```
 
 ```jsonc
 [
-  { "route": "60", "mode": "bus", "lat": 53.44495, "lon": 14.53979,
-    "bearing": 90.0, "headsign": "Stocznia Szczecińska", "label": "1053" },
+  { "route": "60", "mode": "bus", "lat": 48.2101, "lon": 16.3782,
+    "bearing": 90.0, "headsign": "Depot", "label": "1053" },
   "… 165 more"
 ]
 ```
@@ -397,6 +408,7 @@ docker run -p 8000:8000 ghcr.io/dimaxus3-dev/public-transit-api:latest
 
 ```bash
 pip install -r requirements.txt        # fastapi + uvicorn, nothing else
+python -m app.ingest mdb-648    # download + build one city (stdlib only)
 uvicorn app.main:app --reload          # → http://127.0.0.1:8000/docs
 ```
 
@@ -411,6 +423,7 @@ No keys or config required. Cities can also be activated at runtime, no shell:
 ```bash
 curl "http://127.0.0.1:8000/feeds?q=lisboa"              # find a city
 curl -X POST "http://127.0.0.1:8000/feeds/mdb-1038/ingest"  # activate it
+curl "http://127.0.0.1:8000/journey?city=mdb-648&from_lat=53.428&from_lon=14.552&to_lat=53.44&to_lon=14.49"
 ```
 
 ### Hardening (optional, all via env)

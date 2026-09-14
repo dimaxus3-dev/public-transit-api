@@ -21,6 +21,7 @@ docker compose run --rm api python -m app.ingest mdb-648   # Vienna
 
 ```bash
 pip install -r requirements.txt
+python -m app.ingest nyc-subway
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 

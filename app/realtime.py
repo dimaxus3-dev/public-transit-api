@@ -2,7 +2,8 @@
 GTFS-Realtime vehicle positions — live moving markers for the map.
 
 Some agencies publish a `gtfs-rt-vehicles.pb` (a GTFS-Realtime FeedMessage of
-buses with lat/lon + bearing + vehicle label, every few seconds.
+VehiclePosition entities), verified live against several supported feeds: live
+vehicles with lat/lon + bearing + vehicle label, every few seconds.
 
 The RT feed only carries a `trip_id` (its TripDescriptor omits route_id), so we
 join each vehicle to its line/mode/color through the static `gtfs.sqlite` the

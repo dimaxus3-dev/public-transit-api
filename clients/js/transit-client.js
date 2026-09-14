@@ -7,9 +7,11 @@
  *   const t = new TransitClient("http://localhost:8000");
  *   const { feeds } = await t.feeds({ country: "IT" });
  *   await t.ingest("mdb-648");                        // activate Vienna
+ *   const plan = await t.journey("nyc-subway",
  *     { fromLat: 53.428, fromLon: 14.552, toLat: 53.44, toLon: 14.49 });
  *
  *   // live vehicles on a map — one line:
+ *   t.vehiclesStream("nyc-subway", frame => drawMarkers(frame.vehicles));
  */
 export class TransitError extends Error {
   constructor(status, problem) {

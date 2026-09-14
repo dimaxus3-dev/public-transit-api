@@ -544,7 +544,8 @@ def test_gbfs_registry_browse(client):
     d = client.get("/gbfs/systems", params={"country": "PL"}).json()
     assert d["total"] > 50
     assert all(s["country"] == "PL" for s in d["systems"])
-    named = client.get("/gbfs/systems", params=).json()
+    named = client.get("/gbfs/systems", params={"q": "brussels"}).json()
+    assert any(s["system_id"] == "dott-brussels" for s in named["systems"])
     assert client.get("/gbfs/definitely-not-a-system").status_code == 404
 
 
