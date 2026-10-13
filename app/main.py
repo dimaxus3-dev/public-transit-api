@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover
 
 from contextlib import asynccontextmanager
 
-from . import charging, gbfs, intelligence, paths, realtime, registry, routing, schedule, store
+from . import charging, demo_replay, gbfs, intelligence, paths, realtime, registry, routing, schedule, store
 from . import ingest as ingest_mod
 from .version import __version__
 
@@ -348,6 +348,15 @@ app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 @app.get("/demo", include_in_schema=False)
 def demo():
     return FileResponse(os.path.join(_STATIC_DIR, "demo.html"), media_type="text/html")
+
+
+@app.get("/demo/replay/{city}", include_in_schema=False)
+def demo_replay_day(city: str, date: dt.date = Query(...), mode: str = Query("metro")):
+    """Read-only, bounded timetable sample for the demo's day replay."""
+    try:
+        return demo_replay.replay(city, date, mode)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(404, str(exc)) from None
 
 
 @app.get("/dashboard", include_in_schema=False)

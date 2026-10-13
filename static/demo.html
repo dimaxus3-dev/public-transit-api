@@ -17,6 +17,7 @@
     <div class="brand"><span class="brand-mark">✳</span><div><strong>TRANSIT <em>ATLAS</em></strong><small>THE CITY, IN MOTION</small></div></div>
     <div class="top-controls">
       <button class="vehicles-button" id="vehicles-button" type="button" disabled>◉ <span>CHECKING LIVE</span></button>
+      <button class="replay-button" id="replay-button" type="button" aria-pressed="false">◷ <span>DAY REPLAY</span></button>
       <button class="plan-button" id="plan-button" type="button" aria-pressed="false">↗ <span>PLAN A → B</span></button>
       <label class="city-control" for="city"><span>EXPLORE</span><select id="city" aria-label="Choose city"><option>Loading cities…</option></select></label>
       <span class="live-pill"><i></i><span id="network-status">Loading network</span></span>
@@ -37,6 +38,12 @@
   <section class="journey-card glass" id="journey-card" aria-label="Journey plan" hidden>
     <div class="board-header"><div><p class="eyebrow">YOUR JOURNEY</p><h2 id="journey-title">Choose A, then B</h2></div><button id="journey-close" class="icon-button" type="button" aria-label="Close journey">×</button></div>
     <div id="journey-body" class="journey-body" aria-live="polite">Tap two places on the map to plan your route.</div>
+  </section>
+  <section class="replay-panel glass" id="replay-panel" aria-label="Schedule replay" hidden>
+    <div class="replay-head"><div><p class="eyebrow">A DAY IN MOTION</p><strong id="replay-time">08:00</strong></div><button id="replay-close" class="icon-button" type="button" aria-label="Close replay">×</button></div>
+    <input id="replay-position" type="range" min="0" max="1439" value="480" aria-label="Time of day">
+    <div class="replay-controls"><button id="replay-play" type="button" aria-label="Play replay">▶</button><label>DATE <input id="replay-date" type="date"></label><label>MODE <select id="replay-mode" aria-label="Replay transport mode"></select></label><label>SPEED <input id="replay-speed" type="range" min="0" max="4" step="1" value="3" aria-label="Replay speed"><span id="replay-speed-label">600×</span></label></div>
+    <p class="replay-note" id="replay-note">Loading timetable…</p>
   </section>
   <div class="map-hint glass" id="map-hint">Drag to explore <span>·</span> Scroll to zoom</div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
