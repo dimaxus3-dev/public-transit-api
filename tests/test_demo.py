@@ -50,3 +50,14 @@ def test_journey_map_uses_existing_api_and_reduced_motion():
     assert "line-gradient" in js
     assert "line-dasharray" in js
     assert "prefers-reduced-motion: reduce" in js
+
+
+def test_live_vehicle_stream_and_interpolation_are_client_only():
+    client = TestClient(app)
+    js = client.get("/static/demo.js").text
+    assert "/map/layers?city=" in js
+    assert "new EventSource(`/vehicles/stream?city=" in js
+    assert "currentVehicle(v,now)" in js
+    assert "text-rotate" in js
+    assert "LIVE STALE" in js
+    assert "NO LIVE FEED" in js
