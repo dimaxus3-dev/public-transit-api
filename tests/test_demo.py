@@ -109,3 +109,14 @@ def test_replay_controls_are_local_and_offline():
     assert 'id="replay-speed"' in html
     assert "/demo/replay/" in js
     assert "replayPosition(points,sec)" in js
+
+
+def test_buildings_are_opt_in_and_use_dark_style_vector_source():
+    client = TestClient(app)
+    html = client.get("/demo").text
+    js = client.get("/static/demo.js").text
+    assert 'id="buildings-button" type="button" aria-pressed="false"' in html
+    assert "'source-layer':'building'" in js
+    assert "type:'fill-extrusion'" in js
+    assert "'fill-extrusion-height'" in js
+    assert "map.removeLayer('demo-buildings')" in js
