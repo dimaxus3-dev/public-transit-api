@@ -37,3 +37,16 @@ def test_stop_board_and_clustering_are_in_demo():
     assert "stop-clusters" in js
     assert "/departures?limit=7" in js
     assert "encodeURIComponent(id)" in js  # stop IDs may contain colons
+
+
+def test_journey_map_uses_existing_api_and_reduced_motion():
+    client = TestClient(app)
+    html = client.get("/demo").text
+    js = client.get("/static/demo.js").text
+    assert 'id="plan-button"' in html
+    assert 'id="journey-card"' in html
+    assert "fetch(`/journey?${q}`)" in js
+    assert "lineMetrics:true" in js
+    assert "line-gradient" in js
+    assert "line-dasharray" in js
+    assert "prefers-reduced-motion: reduce" in js

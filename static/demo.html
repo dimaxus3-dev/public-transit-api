@@ -16,6 +16,7 @@
   <header class="topbar glass">
     <div class="brand"><span class="brand-mark">✳</span><div><strong>TRANSIT <em>ATLAS</em></strong><small>THE CITY, IN MOTION</small></div></div>
     <div class="top-controls">
+      <button class="plan-button" id="plan-button" type="button" aria-pressed="false">↗ <span>PLAN A → B</span></button>
       <label class="city-control" for="city"><span>EXPLORE</span><select id="city" aria-label="Choose city"><option>Loading cities…</option></select></label>
       <span class="live-pill"><i></i><span id="network-status">Loading network</span></span>
     </div>
@@ -31,6 +32,10 @@
     <div class="board-header"><div><p class="eyebrow">NEXT DEPARTURES</p><h2 id="board-name">Stop</h2></div><button id="board-close" class="icon-button" type="button" aria-label="Close departures">×</button></div>
     <div id="board-list" class="board-list" aria-live="polite"></div>
     <p class="board-note" id="board-note">Scheduled times · Live when available</p>
+  </section>
+  <section class="journey-card glass" id="journey-card" aria-label="Journey plan" hidden>
+    <div class="board-header"><div><p class="eyebrow">YOUR JOURNEY</p><h2 id="journey-title">Choose A, then B</h2></div><button id="journey-close" class="icon-button" type="button" aria-label="Close journey">×</button></div>
+    <div id="journey-body" class="journey-body" aria-live="polite">Tap two places on the map to plan your route.</div>
   </section>
   <div class="map-hint glass" id="map-hint">Drag to explore <span>·</span> Scroll to zoom</div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
