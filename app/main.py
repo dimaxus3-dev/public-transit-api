@@ -27,7 +27,8 @@ from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 try:
     from zoneinfo import ZoneInfo
@@ -340,6 +341,13 @@ def stats():
 # ── Transit Intelligence (analytics dashboard) ───────────────────────────────
 
 _DASHBOARD_HTML = os.path.join(os.path.dirname(__file__), "..", "static", "dashboard.html")
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+
+@app.get("/demo", include_in_schema=False)
+def demo():
+    return FileResponse(os.path.join(_STATIC_DIR, "demo.html"), media_type="text/html")
 
 
 @app.get("/dashboard", include_in_schema=False)

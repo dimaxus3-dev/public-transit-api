@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080d17">
+  <title>Transit Atlas — live city map</title>
+  <link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="/static/demo.css">
+  <script src="/static/vendor/maplibre-gl.js" defer></script>
+  <script src="/static/demo.js" defer></script>
+</head>
+<body>
+  <div id="map" role="application" aria-label="Interactive transit map"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar glass">
+    <div class="brand"><span class="brand-mark">✳</span><div><strong>TRANSIT <em>ATLAS</em></strong><small>THE CITY, IN MOTION</small></div></div>
+    <div class="top-controls">
+      <label class="city-control" for="city"><span>EXPLORE</span><select id="city" aria-label="Choose city"><option>Loading cities…</option></select></label>
+      <span class="live-pill"><i></i><span id="network-status">Loading network</span></span>
+    </div>
+  </header>
+  <aside class="hero glass">
+    <p class="eyebrow">AN OPEN WINDOW INTO THE NETWORK <span>·</span> 01 / 05</p>
+    <h1>Every line.<br><span>One living city.</span></h1>
+    <p class="intro">Explore the routes that move us. Choose a city, follow its lines, and see the network come alive.</p>
+    <div class="hero-rule"></div>
+    <div class="hero-foot"><span id="line-count">— routes on the map</span><span id="mode-list">PUBLIC TRANSIT</span></div>
+  </aside>
+  <div class="map-hint glass" id="map-hint">Drag to explore <span>·</span> Scroll to zoom</div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
