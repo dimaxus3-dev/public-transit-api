@@ -25,3 +25,15 @@ def test_demo_shell_and_vendored_assets():
 def test_demo_does_not_change_feed_route():
     client = TestClient(app)
     assert client.get("/feeds").status_code == 200
+
+
+def test_stop_board_and_clustering_are_in_demo():
+    client = TestClient(app)
+    html = client.get("/demo").text
+    js = client.get("/static/demo.js").text
+    assert 'id="board"' in html
+    assert 'id="board-list"' in html
+    assert "cluster:true" in js
+    assert "stop-clusters" in js
+    assert "/departures?limit=7" in js
+    assert "encodeURIComponent(id)" in js  # stop IDs may contain colons

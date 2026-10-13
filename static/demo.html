@@ -27,6 +27,11 @@
     <div class="hero-rule"></div>
     <div class="hero-foot"><span id="line-count">— routes on the map</span><span id="mode-list">PUBLIC TRANSIT</span></div>
   </aside>
+  <section class="board glass" id="board" aria-label="Stop departures" hidden>
+    <div class="board-header"><div><p class="eyebrow">NEXT DEPARTURES</p><h2 id="board-name">Stop</h2></div><button id="board-close" class="icon-button" type="button" aria-label="Close departures">×</button></div>
+    <div id="board-list" class="board-list" aria-live="polite"></div>
+    <p class="board-note" id="board-note">Scheduled times · Live when available</p>
+  </section>
   <div class="map-hint glass" id="map-hint">Drag to explore <span>·</span> Scroll to zoom</div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </body>
