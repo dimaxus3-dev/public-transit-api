@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Transit API — the world’s 100 largest cities</title>
+  <link rel="stylesheet" href="/static/world.css">
+</head>
+<body>
+  <main class="world">
+    <header class="head">
+      <a class="eyebrow" href="/demo">Transit API · World</a>
+      <h1>The world’s 100 largest cities.<br><span>Which ones are one command away?</span></h1>
+      <p class="lede">Every dot is a real city, placed by its coordinates and sized by population. Green means the registry already has a keyless GTFS feed within <span id="radius">45</span>&nbsp;km. Ingest it, and the city gets a network map, departure boards and journey planning.</p>
+    </header>
+
+    <section class="stats" aria-label="Summary">
+      <div class="stat"><strong id="stat-total">100</strong><span>largest cities by population</span></div>
+      <div class="stat"><strong id="stat-covered" class="ok">—</strong><span>have a keyless feed nearby</span></div>
+      <div class="stat"><strong id="stat-feeds">—</strong><span>matching feeds in the registry</span></div>
+      <div class="stat"><strong id="stat-uncovered" class="dim">—</strong><span>still waiting for open data</span></div>
+    </section>
+
+    <div class="toolbar">
+      <div class="segmented" role="group" aria-label="Filter cities">
+        <button type="button" data-filter="all" aria-pressed="true">All 100</button>
+        <button type="button" data-filter="yes" aria-pressed="false">Covered</button>
+        <button type="button" data-filter="no" aria-pressed="false">Not yet</button>
+      </div>
+      <div class="legend">
+        <span><i class="dot ok"></i>Keyless feed nearby</span>
+        <span><i class="dot none"></i>No open feed yet</span>
+        <span><i class="dot ring"></i>Already ingested</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="map-card">
+        <div class="map" id="map">
+          <img src="/static/world-land.svg" alt="" aria-hidden="true">
+        </div>
+        <p class="credit">Equal Earth projection · land, cities and populations from Natural Earth · feeds from feeds_world.json</p>
+      </div>
+
+      <aside class="detail" id="detail" aria-label="City details" aria-live="polite">
+        <div class="detail-top"><span id="d-rank">Loading…</span><span class="pill" id="d-pill"></span></div>
+        <div class="detail-name">
+          <h2 id="d-name">&nbsp;</h2>
+          <p id="d-meta"></p>
+        </div>
+        <div class="rule"></div>
+        <div id="d-has" hidden>
+          <p class="d-count" id="d-count"></p>
+          <ul class="feed-list" id="d-feeds"></ul>
+          <div class="cmd-wrap">
+            <span>Bring it online</span>
+            <code class="cmd"><b>python</b> -m app.ingest <span id="d-cmd"></span></code>
+          </div>
+          <a class="open-map" id="d-open" href="/demo" hidden>Open network map</a>
+        </div>
+        <div id="d-none" hidden>
+          <p class="d-strong">No keyless feed in the registry yet.</p>
+          <p>Either the agencies here don’t publish GTFS openly, or their feed needs a provider key, which the world registry leaves out by design.</p>
+          <p>Found a verified download? Add its <code>gtfs_static_url</code> to <code>feeds.json</code> and ingest it like any other city.</p>
+        </div>
+      </aside>
+    </div>
+
+    <section class="list" aria-label="All 100 cities">
+      <h2 id="list-title">All 100, by population.</h2>
+      <div class="grid" id="grid"></div>
+      <p class="foot">Population is each metro area’s maximum estimate from Natural Earth. A city counts as covered when at least one feed in feeds_world.json is centred within <span id="radius-foot">45</span>&nbsp;km of it, so a match can include neighbouring agencies (Shenzhen, for example, matches Hong Kong’s feed). A ring marks cities with a locally ingested feed.</p>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="/static/world.js"></script>
+</body>
+</html>
