@@ -3,8 +3,8 @@
 A city counts as covered when at least one feed in feeds_world.json is centred
 within ``RADIUS_KM`` of it, so a match can include neighbouring agencies. A
 city is "ingested" when a locally ingested feed's stop centre lies within the
-same radius. Each city is also projected onto the 1600x700 Equal Earth frame
-of ``static/world-land.svg`` so the page can place its dots. Stdlib only.
+same radius. Each city also carries its position in a 1600x700 Equal Earth
+frame, for clients that draw a static world map. Stdlib only.
 """
 
 from __future__ import annotations
@@ -20,8 +20,7 @@ from .paths import registry_file
 RADIUS_KM = 45.0
 MAP_W, MAP_H = 1600, 700
 
-# Equal Earth (Šavrič, Patterson & Jenny 2018) and the affine fit of
-# static/world-land.svg's 1600x700 frame.
+# Equal Earth (Šavrič, Patterson & Jenny 2018) fitted to a 1600x700 frame.
 _A1, _A2, _A3, _A4 = 1.340264, -0.081106, 0.000893, 0.003796
 _KX, _OX, _KY, _OY = 295.5967, 800.0529, -295.7406, 386.4207
 
@@ -29,7 +28,7 @@ _CITIES_FILE = os.path.join(os.path.dirname(__file__), "world_cities.json")
 
 
 def project(lat: float, lon: float) -> tuple[float, float]:
-    """Equal Earth position of (lat, lon) in world-land.svg pixels."""
+    """Equal Earth position of (lat, lon) in the 1600x700 frame."""
     t = math.asin(math.sqrt(3) / 2 * math.sin(math.radians(lat)))
     t2 = t * t
     t6 = t2 * t2 * t2

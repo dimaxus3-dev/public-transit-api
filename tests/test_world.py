@@ -11,14 +11,15 @@ def test_world_page_and_assets():
     page = client.get("/world")
     assert page.status_code == 200
     assert "/static/world.js" in page.text
-    assert "/static/world-land.svg" in page.text
+    assert "/static/vendor/maplibre-gl.js" in page.text
     assert 'id="grid"' in page.text
     js = client.get("/static/world.js")
     assert js.status_code == 200
     assert "/world/cities" in js.text
     assert "innerHTML" not in js.text  # registry text is rendered as text only
     assert client.get("/static/world.css").status_code == 200
-    assert client.get("/static/world-land.svg").status_code == 200
+    assert "lines.geojson" in js.text  # ingested routes are drawn on the map
+    assert "/cities" in js.text
 
 
 def test_world_cities_payload():
