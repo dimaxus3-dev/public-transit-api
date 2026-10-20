@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover
 
 from contextlib import asynccontextmanager
 
-from . import charging, demo_replay, gbfs, intelligence, paths, realtime, registry, routing, schedule, store
+from . import charging, demo_replay, gbfs, intelligence, paths, realtime, registry, routing, schedule, store, world
 from . import ingest as ingest_mod
 from .version import __version__
 
@@ -357,6 +357,20 @@ def demo_replay_day(city: str, date: dt.date = Query(...), mode: str = Query("me
         return demo_replay.replay(city, date, mode)
     except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(404, str(exc)) from None
+
+
+@app.get("/world", include_in_schema=False)
+def world_page():
+    """The top-100 world cities coverage explorer."""
+    return FileResponse(os.path.join(_STATIC_DIR, "world.html"), media_type="text/html")
+
+
+@app.get("/world/cities")
+def world_cities():
+    """The 100 largest cities with the keyless feeds centred within 45 km of
+    each, which ones are already ingested, and their position on the
+    Equal Earth map used by /world."""
+    return world.build()
 
 
 @app.get("/dashboard", include_in_schema=False)
