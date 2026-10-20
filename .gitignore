@@ -4,6 +4,7 @@ data/
 # ── Environments & caches ─────────────────────────────────────────────────────
 .venv/
 venv/
+.env
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -20,3 +21,7 @@ htmlcov/
 
 # accidental nested clone
 /public-transit-api/
+
+AGENTS.md
+CLAUDE.md
+work/
